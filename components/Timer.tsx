@@ -1,174 +1,123 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Client, Project, TimeEntry } from '../types';
-import { getClients, getProjectsByClientId, addTimeEntry, stopTimeEntry, getActiveTimeEntry } from '../services/api';
-import Card from './Card';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useAppData } from '../contexts/AppDataContext';
+import { useToast } from '../contexts/ToastContext';
+import { Project, Client } from '../types';
 
-const formatTime = (seconds: number) => {
+const PlayIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+);
+
+const StopIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9h6v6H9z" />
+    </svg>
+);
+
+const formatDuration = (seconds: number) => {
     const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
     const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
-    const s = (seconds % 60).toString().padStart(2, '0');
+    const s = Math.floor(seconds % 60).toString().padStart(2, '0');
     return `${h}:${m}:${s}`;
 };
 
-const Spinner = () => <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white"></div>;
-
-interface TimerProps {
-    onNewEntry: (entry: TimeEntry) => void;
-}
-
-const Timer: React.FC<TimerProps> = ({ onNewEntry }) => {
-    const [activeEntry, setActiveEntry] = useState<TimeEntry | null>(null);
-    const [elapsedTime, setElapsedTime] = useState(0);
-    const [clients, setClients] = useState<Client[]>([]);
-    const [projects, setProjects] = useState<Project[]>([]);
-    const [selectedClient, setSelectedClient] = useState('');
-    const [selectedProject, setSelectedProject] = useState('');
+const Timer: React.FC = () => {
+    const { projects, clients, activeTimeEntry, startTimeEntry, stopTimeEntry } = useAppData();
+    const { addToast } = useToast();
     const [description, setDescription] = useState('');
-    const [isLoading, setIsLoading] = useState(true);
-    const [isActionLoading, setIsActionLoading] = useState(false);
-
-    const inputStyles = "w-full px-4 py-2 bg-background dark:bg-slate-700 border border-border rounded-md focus:ring-2 focus:ring-primary focus:outline-none placeholder-text-secondary/70";
+    const [selectedProjectId, setSelectedProjectId] = useState<string>('');
+    const [duration, setDuration] = useState(0);
 
     useEffect(() => {
-        const interval = setInterval(() => {
-            if (activeEntry) {
+        let interval: NodeJS.Timeout | null = null;
+        if (activeTimeEntry) {
+            setDescription(activeTimeEntry.description);
+            setSelectedProjectId(activeTimeEntry.projectId);
+            const updateDuration = () => {
                 const now = new Date();
-                const start = new Date(activeEntry.startTime);
-                setElapsedTime(Math.floor((now.getTime() - start.getTime()) / 1000));
-            }
-        }, 1000);
-        return () => clearInterval(interval);
-    }, [activeEntry]);
-
-    const fetchInitialData = useCallback(async () => {
-        setIsLoading(true);
-        try {
-            const [clientsData, activeEntryData] = await Promise.all([getClients(), getActiveTimeEntry()]);
-            setClients(clientsData);
-            if (clientsData.length > 0) {
-                setSelectedClient(clientsData[0].id);
-            }
-            if (activeEntryData) {
-                setActiveEntry(activeEntryData);
-                setDescription(activeEntryData.description);
-            }
-        } catch (error) {
-            console.error("Failed to fetch initial timer data", error);
-        } finally {
-            setIsLoading(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        fetchInitialData();
-    }, [fetchInitialData]);
-
-    useEffect(() => {
-        if (selectedClient) {
-            getProjectsByClientId(selectedClient).then(setProjects);
+                const start = new Date(activeTimeEntry.startTime);
+                setDuration(Math.floor((now.getTime() - start.getTime()) / 1000));
+            };
+            updateDuration();
+            interval = setInterval(updateDuration, 1000);
         } else {
-            setProjects([]);
+            setDuration(0);
+            setDescription('');
         }
-        setSelectedProject('');
-    }, [selectedClient]);
+        return () => {
+            if (interval) clearInterval(interval);
+        };
+    }, [activeTimeEntry]);
 
     const handleStart = async () => {
-        if (!selectedProject || !description) {
-            alert('Please select a project and enter a description.');
+        if (!selectedProjectId) {
+            addToast('Please select a project.', 'warning');
             return;
         }
-        setIsActionLoading(true);
-        try {
-            const newEntry = await addTimeEntry({
-                projectId: selectedProject,
-                startTime: new Date(),
-                endTime: null,
-                description,
-            });
-            setActiveEntry(newEntry);
-            onNewEntry(newEntry);
-        } catch (error) {
-            console.error("Failed to start timer:", error);
-            alert("Could not start the timer. Please try again.");
-        } finally {
-            setIsActionLoading(false);
+        if (!description) {
+            addToast('Please enter a description.', 'warning');
+            return;
         }
+        await startTimeEntry(selectedProjectId, description);
+        addToast('Timer started!', 'success');
     };
 
     const handleStop = async () => {
-        if (!activeEntry) return;
-        setIsActionLoading(true);
-        try {
-            const stoppedEntry = await stopTimeEntry(activeEntry.id);
-            setActiveEntry(null);
-            setElapsedTime(0);
-            setDescription('');
-            onNewEntry(stoppedEntry);
-        } catch (error) {
-            console.error("Failed to stop timer:", error);
-            alert("Could not stop the timer. Please try again.");
-        } finally {
-            setIsActionLoading(false);
+        if (activeTimeEntry) {
+            await stopTimeEntry(activeTimeEntry.id);
+            addToast('Timer stopped!', 'info');
+            setSelectedProjectId('');
         }
     };
+    
+    const projectOptions = useMemo(() => {
+      const activeProjects = projects.filter(p => !p.isArchived);
+      const clientMap = new Map(clients.map(c => [c.id, c.name]));
+      
+      return activeProjects.map(p => ({
+        ...p,
+        clientName: clientMap.get(p.clientId) || 'Unknown Client'
+      }));
+    }, [projects, clients]);
 
-    if (isLoading) return <div className="p-6 text-center">Loading timer...</div>
 
     return (
-        <Card title="Time Tracker">
-            <div className="flex flex-col md:flex-row items-center gap-4">
-                <input
-                    type="text"
-                    placeholder="What are you working on?"
-                    className={`${inputStyles} flex-grow`}
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    disabled={!!activeEntry || isActionLoading}
-                />
-                {!activeEntry ? (
-                    <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto">
-                        <select
-                            className={`${inputStyles} md:w-56`}
-                            value={selectedClient}
-                            onChange={(e) => setSelectedClient(e.target.value)}
-                            disabled={isActionLoading}
-                        >
-                            <option value="" disabled>Select Client</option>
-                            {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                        </select>
-                        <select
-                            className={`${inputStyles} md:w-56`}
-                            value={selectedProject}
-                            onChange={(e) => setSelectedProject(e.target.value)}
-                            disabled={!selectedClient || isActionLoading}
-                        >
-                            <option value="" disabled>Select Project</option>
-                            {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                        </select>
-                    </div>
-                ) : null}
-                <div className="font-mono text-3xl text-text-primary tracking-wider w-36 text-center">
-                    {formatTime(elapsedTime)}
-                </div>
-                {activeEntry ? (
-                    <button
-                        onClick={handleStop}
-                        disabled={isActionLoading}
-                        className="w-full md:w-32 bg-red-500 text-white px-4 py-3 rounded-md font-semibold hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center"
-                    >
-                        {isActionLoading ? <Spinner /> : 'STOP'}
-                    </button>
-                ) : (
-                    <button
-                        onClick={handleStart}
-                        className="w-full md:w-32 bg-primary text-white px-4 py-3 rounded-md font-semibold hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center"
-                        disabled={!selectedProject || !description || isActionLoading}
-                    >
-                        {isActionLoading ? <Spinner /> : 'START'}
-                    </button>
-                )}
-            </div>
-        </Card>
+        <div className="flex items-center gap-4 bg-surface p-3 rounded-lg border border-border w-full">
+            <input
+                type="text"
+                placeholder="What are you working on?"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="flex-grow bg-transparent focus:outline-none text-text-primary"
+                disabled={!!activeTimeEntry}
+            />
+            <div className="h-6 border-l border-border"></div>
+            <select
+                value={selectedProjectId}
+                onChange={(e) => setSelectedProjectId(e.target.value)}
+                className="bg-transparent focus:outline-none text-text-primary max-w-xs truncate"
+                disabled={!!activeTimeEntry}
+            >
+                <option value="">Select a project</option>
+                {projectOptions.map(p => (
+                  <option key={p.id} value={p.id}>{p.name} ({p.clientName})</option>
+                ))}
+            </select>
+            <div className="h-6 border-l border-border"></div>
+            <span className="font-mono text-lg text-text-primary w-24 text-center">{formatDuration(duration)}</span>
+            {activeTimeEntry ? (
+                <button onClick={handleStop} className="p-2 rounded-full hover:bg-red-500/10 transition-colors" aria-label="Stop Timer">
+                    <StopIcon />
+                </button>
+            ) : (
+                <button onClick={handleStart} className="p-2 rounded-full hover:bg-primary/10 transition-colors" aria-label="Start Timer">
+                    <PlayIcon />
+                </button>
+            )}
+        </div>
     );
 };
 
