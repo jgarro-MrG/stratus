@@ -1,10 +1,11 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
-const Store = require('electron-store');
 const { v4: uuidv4 } = require('uuid');
 
 
 const isDev = process.env.NODE_ENV !== 'production';
+
+let store;
 
 // --- Schema for the store ---
 const schema = {
@@ -24,8 +25,6 @@ const schema = {
     },
   }
 };
-
-const store = new Store({ schema });
 
 // --- Seed Initial Data on first launch ---
 const seedInitialData = () => {
@@ -98,16 +97,21 @@ function createWindow() {
   }
 }
 
-app.whenReady().then(() => {
-  initializeStore();
-  createWindow();
+async function main() {
+    const { default: Store } = await import('electron-store');
+    store = new Store({ schema });
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
-    }
-  });
-});
+    initializeStore();
+    createWindow();
+
+    app.on('activate', () => {
+        if (BrowserWindow.getAllWindows().length === 0) {
+        createWindow();
+        }
+    });
+}
+
+app.whenReady().then(main);
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
