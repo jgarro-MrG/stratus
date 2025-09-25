@@ -38,7 +38,7 @@ const DashboardPage: React.FC = () => {
     const projectMap = new Map(projects.map(p => [p.id, p]));
     const clientMap = new Map(clients.map(c => [c.id, c]));
 
-    const recentEntries = timeEntries.slice(0, 10);
+    const recentEntries = timeEntries.filter(entry => !entry.isArchived).slice(0, 10);
 
     return (
         <div className="space-y-8">

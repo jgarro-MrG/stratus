@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, ChangeEvent } from 'react';
 import { useAppData } from '../contexts/AppDataContext';
 import { useToast } from '../contexts/ToastContext';
 import Card from '../components/Card';
@@ -23,6 +23,7 @@ const ProjectsPage: React.FC = () => {
     
     // View state
     const [showArchived, setShowArchived] = useState(false);
+    const [editingItem, setEditingItem] = useState<{ id: string; name: string; type: 'client' | 'project' } | null>(null);
 
     // Modal states
     const [isClientModalOpen, setIsClientModalOpen] = useState(false);
@@ -70,12 +71,40 @@ const ProjectsPage: React.FC = () => {
         setIsProjectModalOpen(true);
     }
     
+    const handleStartEditing = (item: { id: string; name: string; type: 'client' | 'project' }) => {
+        setEditingItem(item);
+    };
+    
+    const handleCancelEditing = () => {
+        setEditingItem(null);
+    };
+    
+    const handleSaveEditing = async () => {
+        if (!editingItem || !editingItem.name.trim()) {
+            addToast('Name cannot be empty.', 'warning');
+            return;
+        }
+        
+        try {
+            if (editingItem.type === 'client') {
+                await updateClient(editingItem.id, { name: editingItem.name.trim() });
+            } else {
+                await updateProject(editingItem.id, { name: editingItem.name.trim() });
+            }
+            addToast(`${editingItem.type === 'client' ? 'Client' : 'Project'} renamed successfully.`, 'success');
+            handleCancelEditing();
+        } catch (error) {
+            addToast('Failed to rename.', 'error');
+            console.error(error);
+        }
+    };
+    
     const clientsToDisplay = useMemo(() => 
-        clients.filter(c => c.isArchived === showArchived).sort((a,b) => a.name.localeCompare(b.name)), 
+        clients.filter(c => !!c.isArchived === showArchived).sort((a,b) => a.name.localeCompare(b.name)), 
     [clients, showArchived]);
 
     const getProjectsForClient = (clientId: string): Project[] => 
-        projects.filter(p => p.clientId === clientId && p.isArchived === showArchived).sort((a,b) => a.name.localeCompare(b.name));
+        projects.filter(p => p.clientId === clientId && !!p.isArchived === showArchived).sort((a,b) => a.name.localeCompare(b.name));
 
     return (
         <div className="space-y-8">
@@ -96,11 +125,27 @@ const ProjectsPage: React.FC = () => {
 
             {loading ? <p>Loading...</p> : clientsToDisplay.length > 0 ? clientsToDisplay.map(client => {
                 const clientProjects = getProjectsForClient(client.id);
+                const isEditingClient = editingItem?.type === 'client' && editingItem.id === client.id;
                 return (
                     <Card key={client.id} className="transition-all duration-300">
                         <div className="flex justify-between items-start -mt-2">
-                             <h3 className="text-lg font-semibold text-text-primary mb-2">{client.name}</h3>
-                             <ActionMenu items={showArchived ? [
+                            {isEditingClient ? (
+                                <div className="flex-grow flex items-center gap-2">
+                                    <input
+                                        type="text"
+                                        value={editingItem.name}
+                                        onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })}
+                                        className="w-full px-2 py-1 text-lg font-semibold border border-primary rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                                        autoFocus
+                                        onKeyDown={e => e.key === 'Enter' && handleSaveEditing()}
+                                    />
+                                    <button onClick={handleSaveEditing} className="px-3 py-1 text-sm rounded-md bg-primary text-white hover:bg-primary-dark">Save</button>
+                                    <button onClick={handleCancelEditing} className="px-3 py-1 text-sm rounded-md border border-border hover:bg-background">Cancel</button>
+                                </div>
+                            ) : (
+                                <h3 className="text-lg font-semibold text-text-primary mb-2">{client.name}</h3>
+                            )}
+                             {!isEditingClient && <ActionMenu items={showArchived ? [
                                  { label: 'Unarchive Client', onClick: () => updateClient(client.id, { isArchived: false }) },
                                  { label: 'Delete Permanently', isDestructive: true, onClick: () => openConfirmModal({
                                      title: 'Delete Client?',
@@ -110,32 +155,54 @@ const ProjectsPage: React.FC = () => {
                                      isDestructive: true,
                                  })}
                              ] : [
+                                 { label: 'Rename Client', onClick: () => handleStartEditing({ id: client.id, name: client.name, type: 'client' })},
                                  { label: 'Add Project', onClick: () => openNewProjectModal(client.id) },
                                  { label: 'Archive Client', onClick: () => updateClient(client.id, { isArchived: true }) }
-                             ]}/>
+                             ]}/>}
                         </div>
 
                         {clientProjects.length > 0 ? (
                             <ul className="space-y-2 mt-4 border-t border-border pt-4">
-                                {clientProjects.map(project => (
-                                    <li key={project.id} className="flex justify-between items-center p-2 rounded-md hover:bg-background group">
-                                        <span>{project.name}</span>
-                                        <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <ActionMenu items={showArchived ? [
-                                                { label: 'Unarchive Project', onClick: () => updateProject(project.id, { isArchived: false }) },
-                                                { label: 'Delete Permanently', isDestructive: true, onClick: () => openConfirmModal({
-                                                     title: 'Delete Project?',
-                                                     message: `This will permanently delete "${project.name}" and its time entries. This action cannot be undone.`,
-                                                     onConfirm: async () => deleteProject(project.id),
-                                                     confirmText: 'Delete Project',
-                                                     isDestructive: true,
-                                                })}
-                                            ] : [
-                                                { label: 'Archive Project', onClick: () => updateProject(project.id, { isArchived: true }) }
-                                            ]} />
-                                        </div>
-                                    </li>
-                                ))}
+                                {clientProjects.map(project => {
+                                    const isEditingProject = editingItem?.type === 'project' && editingItem.id === project.id;
+                                    return (
+                                        <li key={project.id} className="flex justify-between items-center p-2 rounded-md hover:bg-background group">
+                                            {isEditingProject ? (
+                                                <div className="flex-grow flex items-center gap-2">
+                                                    <input
+                                                        type="text"
+                                                        value={editingItem.name}
+                                                        onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })}
+                                                        className="w-full px-2 py-1 border border-primary rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                                                        autoFocus
+                                                        onKeyDown={e => e.key === 'Enter' && handleSaveEditing()}
+                                                    />
+                                                    <button onClick={handleSaveEditing} className="px-3 py-1 text-sm rounded-md bg-primary text-white hover:bg-primary-dark">Save</button>
+                                                    <button onClick={handleCancelEditing} className="px-3 py-1 text-sm rounded-md border border-border hover:bg-background">Cancel</button>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <span>{project.name}</span>
+                                                    <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <ActionMenu items={showArchived ? [
+                                                            { label: 'Unarchive Project', onClick: () => updateProject(project.id, { isArchived: false }) },
+                                                            { label: 'Delete Permanently', isDestructive: true, onClick: () => openConfirmModal({
+                                                                 title: 'Delete Project?',
+                                                                 message: `This will permanently delete "${project.name}" and its time entries. This action cannot be undone.`,
+                                                                 onConfirm: async () => deleteProject(project.id),
+                                                                 confirmText: 'Delete Project',
+                                                                 isDestructive: true,
+                                                            })}
+                                                        ] : [
+                                                            { label: 'Rename Project', onClick: () => handleStartEditing({ id: project.id, name: project.name, type: 'project' })},
+                                                            { label: 'Archive Project', onClick: () => updateProject(project.id, { isArchived: true }) }
+                                                        ]} />
+                                                    </div>
+                                                </>
+                                            )}
+                                        </li>
+                                    )
+                                })}
                             </ul>
                         ) : (
                             <p className="text-text-secondary italic py-4 text-center">
