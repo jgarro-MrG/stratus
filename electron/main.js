@@ -44,6 +44,9 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1200,
     height: 800,
+    minWidth: 940,
+    minHeight: 600,
+    title: 'Stratus Time Tracker',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
