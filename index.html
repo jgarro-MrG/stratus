@@ -67,8 +67,8 @@
           print-color-adjust: exact;
         }
         
-        .app-sidebar, .app-mobile-header {
-          display: none;
+        .app-sidebar, .app-mobile-header, .print-hidden {
+          display: none !important;
         }
 
         #root > .flex {
@@ -81,6 +81,20 @@
           height: auto;
           flex: none;
           width: 100%;
+          padding: 1.5rem !important;
+          margin: 0 !important;
+          background-color: white !important;
+        }
+
+        .printable-report-card {
+          border: 1px solid #e2e8f0 !important;
+          box-shadow: none !important;
+          break-inside: avoid;
+          margin-bottom: 1.5rem;
+        }
+
+        h1, h2, h3, h4, h5, h6 {
+            break-after: avoid;
         }
       }
     </style>
