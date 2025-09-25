@@ -10,6 +10,7 @@ import DashboardPage from './pages/DashboardPage';
 import ProjectsPage from './pages/ProjectsPage';
 import ReportsPage from './pages/ReportsPage';
 import SettingsPage from './pages/SettingsPage';
+import TimeLogPage from './pages/TimeLogPage';
 
 const AppLayout: React.FC = () => {
   return (
@@ -25,6 +26,7 @@ const AppLayout: React.FC = () => {
             <Route path="/projects" element={<ProjectsPage />} />
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/timelog" element={<TimeLogPage />} />
           </Routes>
         </main>
       </div>

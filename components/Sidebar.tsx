@@ -22,6 +22,11 @@ const SettingsIcon = () => (
       <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
     </svg>
 );
+const ListBulletIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h7" />
+    </svg>
+);
 
 const Sidebar: React.FC = () => {
     const navLinkClasses = "flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors duration-200";
@@ -43,6 +48,10 @@ const Sidebar: React.FC = () => {
                 <NavLink to="/projects" className={({ isActive }) => `${navLinkClasses} ${isActive ? activeClass : inactiveClass}`}>
                     <FolderIcon />
                     <span>Projects</span>
+                </NavLink>
+                <NavLink to="/timelog" className={({ isActive }) => `${navLinkClasses} ${isActive ? activeClass : inactiveClass}`}>
+                    <ListBulletIcon />
+                    <span>Time Log</span>
                 </NavLink>
                 <NavLink to="/reports" className={({ isActive }) => `${navLinkClasses} ${isActive ? activeClass : inactiveClass}`}>
                     <ChartBarIcon />

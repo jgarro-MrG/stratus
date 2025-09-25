@@ -2,8 +2,6 @@ import React, { useMemo, useState, useCallback } from 'react';
 import { useAppData } from '../contexts/AppDataContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import Card from '../components/Card';
-import Modal from '../components/Modal';
-import ActionMenu from '../components/ActionMenu';
 import { TimeEntry, UserSettings } from '../types';
 import * as api from '../services/api';
 // FIX: Some date-fns functions were not found in the main module export.
@@ -38,18 +36,6 @@ const DownloadIcon = () => (
     </svg>
 );
 
-const ToggleSwitch: React.FC<{ checked: boolean; onChange: (checked: boolean) => void; label: string }> = ({ checked, onChange, label }) => (
-    <label htmlFor="toggle" className="flex items-center cursor-pointer">
-        <div className="relative">
-            <input id="toggle" type="checkbox" className="sr-only" checked={checked} onChange={e => onChange(e.target.checked)} />
-            <div className={`block w-14 h-8 rounded-full transition ${checked ? 'bg-primary' : 'bg-border'}`}></div>
-            <div className={`dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition-transform ${checked ? 'translate-x-6' : ''}`}></div>
-        </div>
-        <div className="ml-3 text-text-secondary font-medium">{label}</div>
-    </label>
-);
-
-
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
@@ -70,22 +56,14 @@ const formatMillisToHoursMinutes = (millis: number): string => {
 };
 
 const ReportsPage: React.FC = () => {
-    const { timeEntries, projects, clients, updateTimeEntry, deleteTimeEntry } = useAppData();
+    const { timeEntries, projects, clients } = useAppData();
     const [period, setPeriod] = useState<Period>('thisWeek');
-    const [showArchived, setShowArchived] = useState(false);
-    const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
-    const [modalConfig, setModalConfig] = useState({ title: '', message: '', onConfirm: async () => {}, confirmText: 'Confirm', isDestructive: false });
     
     const [dateRange, setDateRange] = useState(() => {
         const now = new Date();
         return { start: startOfWeek(now, { weekStartsOn: 1 }), end: endOfWeek(now, { weekStartsOn: 1 }) };
     });
     
-    const openConfirmModal = (config: Omit<typeof modalConfig, 'onConfirm'> & { onConfirm: () => Promise<void> }) => {
-        setModalConfig(config);
-        setIsConfirmModalOpen(true);
-    };
-
     const handlePeriodChange = useCallback((newPeriod: Period) => {
         setPeriod(newPeriod);
         if (newPeriod === 'custom') return;
@@ -126,12 +104,9 @@ const ReportsPage: React.FC = () => {
     
     const filteredEntries = useMemo(() => {
         return timeEntries
-          .filter(entry => {
-              const isArchived = entry.isArchived ?? false;
-              return isArchived === showArchived && entry.endTime && isWithinInterval(entry.startTime, dateRange);
-          })
+          .filter(entry => !entry.isArchived && entry.endTime && isWithinInterval(entry.startTime, dateRange))
           .sort((a, b) => b.startTime.getTime() - a.startTime.getTime());
-    }, [timeEntries, dateRange, showArchived]);
+    }, [timeEntries, dateRange]);
 
     const dailySummaryData = useMemo(() => {
         if (!dateRange.start || !dateRange.end) return [];
@@ -385,7 +360,6 @@ const ReportsPage: React.FC = () => {
                                                     <th className="p-2 font-semibold text-text-secondary">Project</th>
                                                     <th className="p-2 font-semibold text-text-secondary text-right">Time Range</th>
                                                     <th className="p-2 font-semibold text-text-secondary text-right">Duration</th>
-                                                    <th className="p-2"></th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -398,22 +372,6 @@ const ReportsPage: React.FC = () => {
                                                             <td className="p-2 text-text-secondary">{project?.name} ({clientName})</td>
                                                             <td className="p-2 text-right text-text-secondary">{format(entry.startTime, 'p')} - {format(entry.endTime!, 'p')}</td>
                                                             <td className="p-2 text-right font-semibold text-text-primary">{formatMillisToHoursMinutes(entry.endTime!.getTime() - entry.startTime.getTime())}</td>
-                                                            <td className="p-2 text-right">
-                                                                <div className="flex justify-end">
-                                                                     <ActionMenu items={showArchived ? [
-                                                                        { label: 'Unarchive Entry', onClick: () => updateTimeEntry(entry.id, { isArchived: false }) },
-                                                                        { label: 'Delete Permanently', isDestructive: true, onClick: () => openConfirmModal({
-                                                                            title: 'Delete Time Entry?',
-                                                                            message: `This will permanently delete the time entry for "${entry.description.substring(0, 50)}${entry.description.length > 50 ? '...' : ''}". This action cannot be undone.`,
-                                                                            onConfirm: async () => deleteTimeEntry(entry.id),
-                                                                            confirmText: 'Delete Entry',
-                                                                            isDestructive: true,
-                                                                        })}
-                                                                    ] : [
-                                                                        { label: 'Archive Entry', onClick: () => updateTimeEntry(entry.id, { isArchived: true }) }
-                                                                    ]} />
-                                                                </div>
-                                                            </td>
                                                         </tr>
                                                     );
                                                 })}
@@ -426,7 +384,7 @@ const ReportsPage: React.FC = () => {
                     </div>
                 </div>
             ) : (
-                <p className="text-text-secondary text-center py-8">{showArchived ? 'No archived entries found for this period.' : 'No time entries found for the selected period.'}</p>
+                <p className="text-text-secondary text-center py-8">No time entries found for the selected period.</p>
             )}
         </>
     );
@@ -463,7 +421,6 @@ const ReportsPage: React.FC = () => {
                             <option value="lastMonth">Last Month</option>
                             <option value="custom">Custom</option>
                         </select>
-                         <ToggleSwitch checked={showArchived} onChange={setShowArchived} label={showArchived ? "Viewing Archived" : "Viewing Active"} />
                         <button
                             onClick={handleExportCSV}
                             className="flex items-center bg-secondary text-white font-semibold px-4 py-2 rounded-lg hover:bg-emerald-600 transition-colors"
@@ -512,19 +469,6 @@ const ReportsPage: React.FC = () => {
                     {renderDetailedReport()}
                 </Card>
             </div>
-
-            <Modal isOpen={isConfirmModalOpen} onClose={() => setIsConfirmModalOpen(false)} title={modalConfig.title}>
-                <p className="text-text-secondary mb-6">{modalConfig.message}</p>
-                <div className="flex justify-end space-x-2">
-                    <button onClick={() => setIsConfirmModalOpen(false)} className="px-4 py-2 rounded-lg border border-border hover:bg-background">Cancel</button>
-                    <button 
-                        onClick={() => { modalConfig.onConfirm(); setIsConfirmModalOpen(false); }}
-                        className={`px-4 py-2 rounded-lg text-white ${modalConfig.isDestructive ? 'bg-red-600 hover:bg-red-700' : 'bg-primary hover:bg-primary-dark'}`}
-                    >
-                        {modalConfig.confirmText}
-                    </button>
-                </div>
-            </Modal>
         </div>
     );
 };
