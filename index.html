@@ -63,6 +63,7 @@
 
         body {
           background-color: white !important;
+          font-size: 10pt;
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
         }
@@ -81,20 +82,62 @@
           height: auto;
           flex: none;
           width: 100%;
-          padding: 1.5rem !important;
+          padding: 1rem !important;
           margin: 0 !important;
           background-color: white !important;
         }
 
         .printable-report-card {
-          border: 1px solid #e2e8f0 !important;
-          box-shadow: none !important;
-          break-inside: avoid;
-          margin-bottom: 1.5rem;
+            border: none !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+            margin-bottom: 0 !important;
         }
+        .printable-report-card > div:first-child { display: none !important; }
+        .printable-report-card > div:last-child { padding: 0 !important; }
 
         h1, h2, h3, h4, h5, h6 {
             break-after: avoid;
+            color: black !important;
+        }
+        
+        .printable-report-card h3 {
+            font-size: 1.5rem !important;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            border-bottom: 2px solid #333;
+            padding-bottom: 0.5rem;
+            border-top: none !important;
+            padding-top: 0 !important;
+            margin-top: 2rem;
+        }
+        .printable-report-card h3:first-of-type {
+            margin-top: 0;
+        }
+        .printable-report-card h4 {
+            font-size: 1.2rem !important;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            border-bottom: none !important;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse !important;
+            break-inside: avoid;
+            font-size: 10pt;
+        }
+        thead { display: table-header-group; }
+        th, td {
+            border: 1px solid #ddd !important;
+            padding: 6px !important;
+            text-align: left !important;
+            color: black !important;
+            background-color: transparent !important;
+        }
+        th {
+            background-color: #f2f2f2 !important;
+            font-weight: 600 !important;
         }
       }
     </style>

@@ -3,17 +3,17 @@ import { useAppData } from '../contexts/AppDataContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import Card from '../components/Card';
 import { TimeEntry } from '../types';
-// FIX: Switched to individual sub-path imports for date-fns to resolve module export errors.
-import startOfWeek from 'date-fns/startOfWeek';
-import endOfWeek from 'date-fns/endOfWeek';
-import eachDayOfInterval from 'date-fns/eachDayOfInterval';
-import isWithinInterval from 'date-fns/isWithinInterval';
-import format from 'date-fns/format';
-import subWeeks from 'date-fns/subWeeks';
-import startOfMonth from 'date-fns/startOfMonth';
-import endOfMonth from 'date-fns/endOfMonth';
-import subMonths from 'date-fns/subMonths';
-import isSameDay from 'date-fns/isSameDay';
+// FIX: Corrected date-fns imports to explicitly use the default export, resolving "not callable" errors with sub-path imports.
+import { default as startOfWeek } from 'date-fns/startOfWeek';
+import { default as endOfWeek } from 'date-fns/endOfWeek';
+import { default as eachDayOfInterval } from 'date-fns/eachDayOfInterval';
+import { default as isWithinInterval } from 'date-fns/isWithinInterval';
+import { default as format } from 'date-fns/format';
+import { default as subWeeks } from 'date-fns/subWeeks';
+import { default as startOfMonth } from 'date-fns/startOfMonth';
+import { default as endOfMonth } from 'date-fns/endOfMonth';
+import { default as subMonths } from 'date-fns/subMonths';
+import { default as isSameDay } from 'date-fns/isSameDay';
 
 type Period = 'thisWeek' | 'lastWeek' | 'thisMonth' | 'lastMonth';
 
@@ -153,8 +153,8 @@ const ReportsPage: React.FC = () => {
                 <p className="text-lg text-gray-600">{format(dateRange.start, 'MMMM d, yyyy')} - {format(dateRange.end, 'MMMM d, yyyy')}</p>
             </div>
             
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <Card title="Daily Hours Summary" className="printable-report-card">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 print-hidden">
+                <Card title="Daily Hours Summary">
                     <ResponsiveContainer width="100%" height={250}>
                         <BarChart data={dailySummaryData} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
                             <CartesianGrid stroke="rgb(var(--color-border))" strokeDasharray="3 3" />
@@ -166,7 +166,7 @@ const ReportsPage: React.FC = () => {
                     </ResponsiveContainer>
                 </Card>
 
-                <Card title="Project Breakdown" className="printable-report-card">
+                <Card title="Project Breakdown">
                     <ResponsiveContainer width="100%" height={250}>
                         <BarChart data={projectTimeData} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
                              <CartesianGrid stroke="rgb(var(--color-border))" strokeDasharray="3 3" />
@@ -185,13 +185,23 @@ const ReportsPage: React.FC = () => {
                     <div className="space-y-8">
                         <div>
                             <h3 className="text-xl font-semibold text-text-primary mb-4">Project Totals</h3>
-                            <div className="space-y-2">
-                                {detailedSummary.projectTotals.map(p => (
-                                    <div key={p.name} className="flex justify-between items-center p-3 bg-background rounded-md">
-                                        <span className="font-medium text-text-primary">{p.name}</span>
-                                        <span className="font-semibold text-text-primary">{formatMillisToHoursMinutes(p.totalMillis)}</span>
-                                    </div>
-                                ))}
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full text-left">
+                                    <thead className="border-b border-border">
+                                        <tr>
+                                            <th className="p-3 font-semibold text-text-secondary">Project</th>
+                                            <th className="p-3 font-semibold text-text-secondary text-right">Total Time</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {detailedSummary.projectTotals.map(p => (
+                                            <tr key={p.name} className="border-b border-border last:border-b-0">
+                                                <td className="p-3 font-medium text-text-primary">{p.name}</td>
+                                                <td className="p-3 text-right font-semibold text-text-primary">{formatMillisToHoursMinutes(p.totalMillis)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
 
@@ -200,24 +210,32 @@ const ReportsPage: React.FC = () => {
                             <div className="space-y-6">
                                 {detailedSummary.dailyLogs.map(([day, entries]) => (
                                     <div key={day}>
-                                        <h4 className="font-semibold text-text-primary text-lg mb-2 pb-2 border-b border-border">{format(new Date(day), 'EEEE, MMMM d')}</h4>
-                                        <div className="space-y-3">
-                                            {entries.map(entry => {
-                                                const project = projectMap.get(entry.projectId);
-                                                const clientName = project ? clientMap.get(project.clientId) : 'Unknown';
-                                                return (
-                                                    <div key={entry.id} className="grid grid-cols-12 gap-4 items-start">
-                                                        <div className="col-span-8">
-                                                            <p className="font-medium text-text-primary">{entry.description}</p>
-                                                            <p className="text-sm text-text-secondary">{project?.name} ({clientName})</p>
-                                                        </div>
-                                                        <div className="col-span-4 text-right">
-                                                            <p className="font-semibold text-text-primary">{formatMillisToHoursMinutes(entry.endTime!.getTime() - entry.startTime.getTime())}</p>
-                                                            <p className="text-sm text-text-secondary">{format(entry.startTime, 'p')} - {format(entry.endTime!, 'p')}</p>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
+                                        <h4 className="font-semibold text-text-primary text-lg mb-3">{format(new Date(day), 'EEEE, MMMM d')}</h4>
+                                        <div className="overflow-x-auto">
+                                            <table className="min-w-full text-left text-sm">
+                                                <thead className="bg-background">
+                                                    <tr className="border-b border-border">
+                                                        <th className="p-2 font-semibold text-text-secondary w-1/2">Description</th>
+                                                        <th className="p-2 font-semibold text-text-secondary">Project</th>
+                                                        <th className="p-2 font-semibold text-text-secondary text-right">Time Range</th>
+                                                        <th className="p-2 font-semibold text-text-secondary text-right">Duration</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {entries.map(entry => {
+                                                        const project = projectMap.get(entry.projectId);
+                                                        const clientName = project ? clientMap.get(project.clientId) : 'Unknown';
+                                                        return (
+                                                            <tr key={entry.id} className="border-b border-border last:border-b-0">
+                                                                <td className="p-2 text-text-primary">{entry.description}</td>
+                                                                <td className="p-2 text-text-secondary">{project?.name} ({clientName})</td>
+                                                                <td className="p-2 text-right text-text-secondary">{format(entry.startTime, 'p')} - {format(entry.endTime!, 'p')}</td>
+                                                                <td className="p-2 text-right font-semibold text-text-primary">{formatMillisToHoursMinutes(entry.endTime!.getTime() - entry.startTime.getTime())}</td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
                                         </div>
                                     </div>
                                 ))}
