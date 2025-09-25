@@ -1,6 +1,5 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { ThemeSwitcher } from './ThemeSwitcher';
 
 const ClockIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -54,10 +53,6 @@ const Sidebar: React.FC = () => {
                     <span>Settings</span>
                 </NavLink>
             </nav>
-
-            <div className="mt-auto">
-              <ThemeSwitcher />
-            </div>
         </div>
     );
 };
