@@ -2,8 +2,8 @@ import React from 'react';
 import { useAppData } from '../contexts/AppDataContext';
 import { Client, Project, TimeEntry } from '../types';
 import Card from '../components/Card';
-import { format } from 'date-fns';
 import { Link } from 'react-router-dom';
+import { useFormatting } from '../hooks/useFormatting';
 
 
 const formatDuration = (start: Date, end: Date | null): string => {
@@ -16,6 +16,7 @@ const formatDuration = (start: Date, end: Date | null): string => {
 };
 
 const RecentActivityItem: React.FC<{ entry: TimeEntry & { startTime: Date, endTime: Date | null }, project?: Project, client?: Client }> = ({ entry, project, client }) => {
+    const { formatDate } = useFormatting();
     return (
         <div className="flex items-center justify-between py-3">
             <div>
@@ -26,7 +27,7 @@ const RecentActivityItem: React.FC<{ entry: TimeEntry & { startTime: Date, endTi
             </div>
             <div className="text-right flex-shrink-0 ml-4">
                 <p className="font-semibold text-text-primary">{formatDuration(entry.startTime, entry.endTime)}</p>
-                <p className="text-sm text-text-secondary">{format(entry.startTime, 'MMM d')}</p>
+                <p className="text-sm text-text-secondary">{formatDate(entry.startTime)}</p>
             </div>
         </div>
     );

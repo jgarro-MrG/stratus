@@ -7,6 +7,7 @@ import ActionMenu from '../components/ActionMenu';
 import { TimeEntry } from '../types';
 import { format, differenceInMilliseconds } from 'date-fns';
 import { v4 as uuidv4 } from 'uuid';
+import { useFormatting } from '../hooks/useFormatting';
 
 type TimeEntryWithDates = TimeEntry & { startTime: Date; endTime: Date | null };
 
@@ -52,18 +53,17 @@ type BatchEntry = { key: string, projectId: string, description: string, startTi
 const TimeLogPage: React.FC = () => {
     const { timeEntries, projects, clients, updateTimeEntry, deleteTimeEntry, addBatchManualTimeEntries } = useAppData();
     const { addToast } = useToast();
+    const { formatDateTime, formatTime } = useFormatting();
 
     // View state
     const [showArchived, setShowArchived] = useState(false);
     const [editingEntry, setEditingEntry] = useState<TimeEntryWithDates | null>(null);
     
     // Modal states
-    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
     
     // Form states
-    const [newEntry, setNewEntry] = useState({ projectId: '', description: '', startTime: '', endTime: '' });
     const [batchEntries, setBatchEntries] = useState<BatchEntry[]>([{ key: uuidv4(), projectId: '', description: '', startTime: '', endTime: '' }]);
 
     // Confirmation modal state
@@ -126,27 +126,6 @@ const TimeLogPage: React.FC = () => {
         if (!editingEntry) return;
         setEditingEntry(prev => ({ ...prev!, [field]: value }));
     };
-    
-    const handleNewEntryChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-        setNewEntry(prev => ({...prev, [e.target.name]: e.target.value}));
-    };
-    
-    const handleAddNewEntry = async () => {
-        if (!newEntry.projectId || !newEntry.description.trim() || !newEntry.startTime || !newEntry.endTime) {
-            addToast('Please fill all fields.', 'warning');
-            return;
-        }
-        const start = new Date(newEntry.startTime);
-        const end = new Date(newEntry.endTime);
-        if (start >= end) {
-            addToast('End time must be after start time.', 'warning');
-            return;
-        }
-        await addBatchManualTimeEntries([{ ...newEntry, startTime: start.toISOString(), endTime: end.toISOString() }]);
-        addToast('New entry added!', 'success');
-        setIsAddModalOpen(false);
-        setNewEntry({ projectId: '', description: '', startTime: '', endTime: '' });
-    };
 
     // Batch Modal Logic
     const handleAddBatchRow = () => {
@@ -192,8 +171,7 @@ const TimeLogPage: React.FC = () => {
                 <h1 className="text-3xl font-bold text-text-primary">Time Log</h1>
                 <div className="flex items-center gap-4">
                     <ToggleSwitch checked={showArchived} onChange={setShowArchived} label={showArchived ? "Viewing Archived" : "Viewing Active"} />
-                    <button onClick={() => setIsBatchModalOpen(true)} className="bg-secondary text-white font-semibold px-4 py-2 rounded-lg hover:bg-emerald-600 transition-colors">Add Batch Entries</button>
-                    <button onClick={() => setIsAddModalOpen(true)} className="bg-primary text-white font-semibold px-4 py-2 rounded-lg hover:bg-primary-dark transition-colors">Add New Entry</button>
+                    <button onClick={() => setIsBatchModalOpen(true)} className="bg-primary text-white font-semibold px-4 py-2 rounded-lg hover:bg-primary-dark transition-colors">Add New Entries</button>
                 </div>
             </div>
 
@@ -218,9 +196,9 @@ const TimeLogPage: React.FC = () => {
                                 return (
                                     <tr key={entry.id} className={`border-b border-border last:border-b-0 ${isEditing ? 'bg-primary/5' : ''}`}>
                                         <td className="p-3 align-top">{isEditing ? <select value={editingEntry.projectId} onChange={(e) => handleFieldChange('projectId', e.target.value)} className="w-full px-2 py-1 border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary"><option value="">Select project</option>{projectOptions.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select> : <div><p className="font-medium text-text-primary">{project?.name || 'Unknown Project'}</p><p className="text-sm text-text-secondary">{clientName}</p></div>}</td>
-                                        <td className="p-3 align-top">{isEditing ? <input type="text" value={editingEntry.description} onChange={(e) => handleFieldChange('description', e.target.value)} className="w-full px-2 py-1 border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary" /> : <p className="text-text-primary">{entry.description}</p>}</td>
-                                        <td className="p-3 align-top">{isEditing ? <input type="datetime-local" value={formatForDateTimeLocal(editingEntry.startTime)} onChange={(e) => handleFieldChange('startTime', e.target.value)} className="w-full px-2 py-1 border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary" /> : <p className="text-text-secondary">{format(entry.startTime, 'MMM d, yyyy, p')}</p>}</td>
-                                        <td className="p-3 align-top">{isEditing ? <input type="datetime-local" value={formatForDateTimeLocal(editingEntry.endTime)} onChange={(e) => handleFieldChange('endTime', e.target.value)} className="w-full px-2 py-1 border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary" /> : <p className="text-text-secondary">{entry.endTime ? format(entry.endTime, 'p') : '-'}</p>}</td>
+                                        <td className="p-3 align-top">{isEditing ? <input type="text" value={editingEntry.description} onChange={(e) => handleFieldChange('description', e.target.value)} className="w-full px-2 py-1 border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary" /> : <p className="text-text-primary text-xs">{entry.description}</p>}</td>
+                                        <td className="p-3 align-top">{isEditing ? <input type="datetime-local" value={formatForDateTimeLocal(editingEntry.startTime)} onChange={(e) => handleFieldChange('startTime', e.target.value)} className="w-full px-2 py-1 border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary" /> : <p className="text-text-secondary">{formatDateTime(entry.startTime)}</p>}</td>
+                                        <td className="p-3 align-top">{isEditing ? <input type="datetime-local" value={formatForDateTimeLocal(editingEntry.endTime)} onChange={(e) => handleFieldChange('endTime', e.target.value)} className="w-full px-2 py-1 border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary" /> : <p className="text-text-secondary">{entry.endTime ? formatTime(entry.endTime) : '-'}</p>}</td>
                                         <td className="p-3 align-top text-right font-semibold text-text-primary">{formatDuration(entry.startTime, entry.endTime)}</td>
                                         <td className="p-3 align-top"><div className="flex justify-end items-center gap-1">{isEditing ? <><button onClick={handleEditSave} className="px-3 py-1 text-sm rounded-md bg-primary text-white hover:bg-primary-dark">Save</button><button onClick={handleEditCancel} className="px-3 py-1 text-sm rounded-md border border-border hover:bg-background">Cancel</button></> : <ActionMenu items={showArchived ? [{ label: 'Unarchive Entry', onClick: () => updateTimeEntry(entry.id, { isArchived: false }) },{ label: 'Delete Permanently', isDestructive: true, onClick: () => openConfirmModal({ title: 'Delete Time Entry?', message: `This will permanently delete the time entry: "${entry.description.substring(0, 50)}...". This action cannot be undone.`, onConfirm: async () => deleteTimeEntry(entry.id), confirmText: 'Delete Entry', isDestructive: true, }) }] : [{ label: 'Edit', onClick: () => handleEditStart(entry) }, { label: 'Archive Entry', onClick: () => updateTimeEntry(entry.id, { isArchived: true }) }]} />}</div></td>
                                     </tr>
@@ -237,20 +215,8 @@ const TimeLogPage: React.FC = () => {
                 <p className="text-text-secondary mb-6">{modalConfig.message}</p>
                 <div className="flex justify-end space-x-2"><button onClick={() => setIsConfirmModalOpen(false)} className="px-4 py-2 rounded-lg border border-border hover:bg-background">Cancel</button><button onClick={() => { modalConfig.onConfirm(); setIsConfirmModalOpen(false); }} className={`px-4 py-2 rounded-lg text-white ${modalConfig.isDestructive ? 'bg-red-600 hover:bg-red-700' : 'bg-primary hover:bg-primary-dark'}`}>{modalConfig.confirmText}</button></div>
             </Modal>
-            
-            <Modal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} title="Add New Time Entry">
-                <div className="space-y-4">
-                    <div><label className="block text-sm font-medium text-text-secondary mb-1">Project</label><select name="projectId" value={newEntry.projectId} onChange={handleNewEntryChange} className="w-full px-3 py-2 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"><option value="">Select project</option>{projectOptions.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
-                    <div><label className="block text-sm font-medium text-text-secondary mb-1">Description</label><input type="text" name="description" value={newEntry.description} onChange={handleNewEntryChange} className="w-full px-3 py-2 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary" placeholder="What did you work on?" /></div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div><label className="block text-sm font-medium text-text-secondary mb-1">Start Time</label><input type="datetime-local" name="startTime" value={newEntry.startTime} onChange={handleNewEntryChange} className="w-full px-3 py-2 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary" /></div>
-                        <div><label className="block text-sm font-medium text-text-secondary mb-1">End Time</label><input type="datetime-local" name="endTime" value={newEntry.endTime} onChange={handleNewEntryChange} className="w-full px-3 py-2 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary" /></div>
-                    </div>
-                    <div className="flex justify-end space-x-2 pt-4"><button onClick={() => setIsAddModalOpen(false)} className="px-4 py-2 rounded-lg border border-border hover:bg-background">Cancel</button><button onClick={handleAddNewEntry} className="px-4 py-2 rounded-lg bg-primary text-white hover:bg-primary-dark">Add Entry</button></div>
-                </div>
-            </Modal>
 
-            <Modal isOpen={isBatchModalOpen} onClose={() => setIsBatchModalOpen(false)} title="Add Batch Time Entries" size="4xl">
+            <Modal isOpen={isBatchModalOpen} onClose={() => setIsBatchModalOpen(false)} title="Add New Entries" size="4xl">
                 <div className="space-y-4">
                     <div className="overflow-x-auto max-h-[60vh]">
                         <table className="min-w-full text-left text-sm">

@@ -20,6 +20,7 @@ import subWeeks from 'date-fns/subWeeks';
 import startOfMonth from 'date-fns/startOfMonth';
 import subMonths from 'date-fns/subMonths';
 import startOfDay from 'date-fns/startOfDay';
+import { useFormatting } from '../hooks/useFormatting';
 
 
 type Period = 'thisWeek' | 'lastWeek' | 'thisMonth' | 'lastMonth' | 'custom';
@@ -58,6 +59,7 @@ const formatMillisToHoursMinutes = (millis: number): string => {
 const ReportsPage: React.FC = () => {
     const { timeEntries, projects, clients } = useAppData();
     const [period, setPeriod] = useState<Period>('thisWeek');
+    const { formatTime, dateFormat } = useFormatting();
     
     const [dateRange, setDateRange] = useState(() => {
         const now = new Date();
@@ -351,7 +353,7 @@ const ReportsPage: React.FC = () => {
                         <div className="space-y-6">
                             {detailedSummary.dailyLogs.map(([day, entries]) => (
                                 <div key={day}>
-                                    <h3 className="font-semibold text-text-primary text-lg mb-3">{format(new Date(day.replace(/-/g, '/')), 'EEEE, MMMM d')}</h3>
+                                    <h3 className="font-semibold text-text-primary text-lg mb-3">{format(new Date(day.replace(/-/g, '/')), `EEEE, ${dateFormat}`)}</h3>
                                     <div className="overflow-x-auto">
                                         <table className="min-w-full text-left text-sm">
                                             <thead className="bg-background">
@@ -370,7 +372,7 @@ const ReportsPage: React.FC = () => {
                                                         <tr key={entry.id} className="border-b border-border last:border-b-0">
                                                             <td className="p-2 text-text-primary">{entry.description}</td>
                                                             <td className="p-2 text-text-secondary">{project?.name} ({clientName})</td>
-                                                            <td className="p-2 text-right text-text-secondary">{format(entry.startTime, 'p')} - {format(entry.endTime!, 'p')}</td>
+                                                            <td className="p-2 text-right text-text-secondary">{formatTime(entry.startTime)} - {formatTime(entry.endTime!)}</td>
                                                             <td className="p-2 text-right font-semibold text-text-primary">{formatMillisToHoursMinutes(entry.endTime!.getTime() - entry.startTime.getTime())}</td>
                                                         </tr>
                                                     );
