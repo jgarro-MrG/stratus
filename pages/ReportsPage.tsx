@@ -2,7 +2,7 @@ import React, { useMemo, useState, useCallback } from 'react';
 import { useAppData } from '../contexts/AppDataContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import Card from '../components/Card';
-import { TimeEntry, UserSettings } from '../types';
+import { TimeEntry } from '../types';
 import * as api from '../services/api';
 // FIX: Some date-fns functions were not found in the main module export.
 // They are now imported directly from their submodules to fix resolution issues.
@@ -21,7 +21,9 @@ import startOfMonth from 'date-fns/startOfMonth';
 import subMonths from 'date-fns/subMonths';
 import startOfDay from 'date-fns/startOfDay';
 import { useFormatting } from '../hooks/useFormatting';
-
+import { useToast } from '../contexts/ToastContext';
+import { GoogleGenAI } from '@google/genai';
+import Spinner from '../components/Spinner';
 
 type Period = 'thisWeek' | 'lastWeek' | 'thisMonth' | 'lastMonth' | 'custom';
 
@@ -36,6 +38,13 @@ const DownloadIcon = () => (
         <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
     </svg>
 );
+
+const SparklesIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m1-12a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1h-6a1 1 0 01-1-1V6zM17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+    </svg>
+);
+
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
@@ -58,8 +67,11 @@ const formatMillisToHoursMinutes = (millis: number): string => {
 
 const ReportsPage: React.FC = () => {
     const { timeEntries, projects, clients } = useAppData();
+    const { addToast } = useToast();
     const [period, setPeriod] = useState<Period>('thisWeek');
     const { formatTime, dateFormat } = useFormatting();
+    const [summary, setSummary] = useState('');
+    const [isSummaryLoading, setIsSummaryLoading] = useState(false);
     
     const [dateRange, setDateRange] = useState(() => {
         const now = new Date();
@@ -68,6 +80,7 @@ const ReportsPage: React.FC = () => {
     
     const handlePeriodChange = useCallback((newPeriod: Period) => {
         setPeriod(newPeriod);
+        setSummary(''); // Clear summary when period changes
         if (newPeriod === 'custom') return;
 
         const now = new Date();
@@ -95,6 +108,7 @@ const ReportsPage: React.FC = () => {
         if (!dateString) return;
         const date = new Date(dateString.replace(/-/g, '/')); // More reliable parsing
         setPeriod('custom');
+        setSummary(''); // Clear summary when date changes
         setDateRange(prev => ({
             ...prev,
             [part]: part === 'start' ? startOfDay(date) : endOfDay(date)
@@ -109,6 +123,60 @@ const ReportsPage: React.FC = () => {
           .filter(entry => !entry.isArchived && entry.endTime && isWithinInterval(entry.startTime, dateRange))
           .sort((a, b) => b.startTime.getTime() - a.startTime.getTime());
     }, [timeEntries, dateRange]);
+
+    const handleGenerateSummary = async () => {
+        if (!process.env.API_KEY) {
+            addToast('Gemini API key is not configured.', 'error');
+            return;
+        }
+        if (filteredEntries.length === 0) {
+            addToast('There is no data to summarize for this period.', 'warning');
+            return;
+        }
+
+        setIsSummaryLoading(true);
+        setSummary('');
+
+        try {
+            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+            const reportData = filteredEntries.map(entry => {
+                const project = projectMap.get(entry.projectId);
+                const client = project ? clientMap.get(project.clientId) : 'Unknown';
+                const duration = formatMillisToHoursMinutes(entry.endTime!.getTime() - entry.startTime.getTime());
+                return `- Client: ${client}, Project: ${project?.name || 'Unknown'}, Task: "${entry.description}", Duration: ${duration}`;
+            }).join('\n');
+            
+            const totalDuration = formatMillisToHoursMinutes(
+                filteredEntries.reduce((acc, entry) => acc + (entry.endTime!.getTime() - entry.startTime.getTime()), 0)
+            );
+
+            const prompt = `You are a professional project manager's assistant. Your task is to write a concise, clear, and professional summary based on a list of time entries. The summary should be suitable for a client report or an internal stakeholder update.
+
+Here is the data for the period from ${format(dateRange.start, 'MMMM d, yyyy')} to ${format(dateRange.end, 'MMMM d, yyyy')}.
+The total time tracked was ${totalDuration}.
+
+Time Entries:
+${reportData}
+
+Based on this data, please generate a summary. Group activities by project or theme where possible. Highlight key accomplishments and the general focus of the work during this period. Write in complete sentences. Do not just list the tasks.
+`;
+
+            const stream = await ai.models.generateContentStream({
+                model: 'gemini-2.5-flash',
+                contents: prompt,
+            });
+
+            for await (const chunk of stream) {
+                setSummary(prev => prev + chunk.text);
+            }
+        } catch (error) {
+            console.error("AI Summary Generation Error:", error);
+            addToast('An error occurred while generating the summary.', 'error');
+        } finally {
+            setIsSummaryLoading(false);
+        }
+    };
 
     const dailySummaryData = useMemo(() => {
         if (!dateRange.start || !dateRange.end) return [];
@@ -423,22 +491,28 @@ const ReportsPage: React.FC = () => {
                             <option value="lastMonth">Last Month</option>
                             <option value="custom">Custom</option>
                         </select>
-                        <button
-                            onClick={handleExportCSV}
-                            className="flex items-center bg-secondary text-white font-semibold px-4 py-2 rounded-lg hover:bg-emerald-600 transition-colors"
+                         <button
+                            onClick={handleGenerateSummary}
+                            disabled={isSummaryLoading}
+                            className="flex items-center bg-secondary text-white font-semibold px-4 py-2 rounded-lg hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            <DownloadIcon />
-                            Export CSV
-                        </button>
-                        <button
-                            onClick={handlePrint}
-                            className="flex items-center bg-primary text-white font-semibold px-4 py-2 rounded-lg hover:bg-primary-dark transition-colors"
-                        >
-                            <PrintIcon />
-                            Print Report
+                            <SparklesIcon />
+                            {isSummaryLoading ? 'Generating...' : 'Generate Summary'}
                         </button>
                     </div>
                 </div>
+
+                {(isSummaryLoading || summary) && (
+                    <Card title="AI-Generated Summary">
+                        {isSummaryLoading && !summary && (
+                            <div className="flex items-center justify-center p-8">
+                                <Spinner className="w-8 h-8 text-primary" />
+                                <p className="ml-4 text-text-secondary">Generating your summary...</p>
+                            </div>
+                        )}
+                        <div className="prose prose-sm dark:prose-invert max-w-none text-text-primary whitespace-pre-wrap">{summary}</div>
+                    </Card>
+                )}
                 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     <Card title="Daily Hours Summary">
@@ -468,6 +542,22 @@ const ReportsPage: React.FC = () => {
                 </div>
 
                 <Card title="Detailed Report">
+                    <div className="flex justify-end gap-2 mb-4 -mt-12">
+                        <button
+                            onClick={handleExportCSV}
+                            className="flex items-center bg-background border border-border text-text-secondary font-semibold px-4 py-2 rounded-lg hover:bg-border transition-colors text-sm"
+                        >
+                            <DownloadIcon />
+                            Export CSV
+                        </button>
+                        <button
+                            onClick={handlePrint}
+                            className="flex items-center bg-background border border-border text-text-secondary font-semibold px-4 py-2 rounded-lg hover:bg-border transition-colors text-sm"
+                        >
+                            <PrintIcon />
+                            Print Report
+                        </button>
+                    </div>
                     {renderDetailedReport()}
                 </Card>
             </div>
