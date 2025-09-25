@@ -4,19 +4,21 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import Card from '../components/Card';
 import { TimeEntry } from '../types';
 import * as api from '../services/api';
-// FIX: Changed to individual default imports from date-fns submodules to resolve module resolution issues.
-import startOfWeek from 'date-fns/startOfWeek';
-import endOfWeek from 'date-fns/endOfWeek';
-import eachDayOfInterval from 'date-fns/eachDayOfInterval';
-import isWithinInterval from 'date-fns/isWithinInterval';
-import format from 'date-fns/format';
-import subWeeks from 'date-fns/subWeeks';
-import startOfMonth from 'date-fns/startOfMonth';
-import endOfMonth from 'date-fns/endOfMonth';
-import subMonths from 'date-fns/subMonths';
-import isSameDay from 'date-fns/isSameDay';
-import startOfDay from 'date-fns/startOfDay';
-import endOfDay from 'date-fns/endOfDay';
+// FIX: Consolidated date-fns imports to use named exports from the main 'date-fns' package to resolve module resolution issues.
+import {
+    startOfWeek,
+    endOfWeek,
+    eachDayOfInterval,
+    isWithinInterval,
+    format,
+    subWeeks,
+    startOfMonth,
+    endOfMonth,
+    subMonths,
+    isSameDay,
+    startOfDay,
+    endOfDay,
+} from 'date-fns';
 
 
 type Period = 'thisWeek' | 'lastWeek' | 'thisMonth' | 'lastMonth' | 'custom';
@@ -26,6 +28,13 @@ const PrintIcon = () => (
         <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
     </svg>
 );
+
+const DownloadIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+    </svg>
+);
+
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
@@ -237,6 +246,62 @@ const ReportsPage: React.FC = () => {
             }, 250);
         }
     };
+    
+    const handleExportCSV = () => {
+        const escapeCsvField = (field: any): string => {
+            const str = String(field);
+            if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+                return `"${str.replace(/"/g, '""')}"`;
+            }
+            return str;
+        };
+        
+        const formatMillisToHmsString = (millis: number): string => {
+            if (!millis || millis < 0) return '00:00:00';
+            const totalSeconds = Math.floor(millis / 1000);
+            const hours = Math.floor(totalSeconds / 3600).toString().padStart(2, '0');
+            const minutes = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
+            const seconds = (totalSeconds % 60).toString().padStart(2, '0');
+            return `${hours}:${minutes}:${seconds}`;
+        };
+
+        const headers = ['Date', 'Client', 'Project', 'Description', 'Start Time', 'End Time', 'Duration (h:m:s)', 'Duration (decimal)'];
+        
+        const sortedEntries = [...filteredEntries].sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+
+        const rows = sortedEntries.map(entry => {
+            const project = projectMap.get(entry.projectId);
+            const clientName = project ? clientMap.get(project.clientId) || 'Unknown Client' : 'Unknown Client';
+            const durationMs = entry.endTime ? entry.endTime.getTime() - entry.startTime.getTime() : 0;
+
+            return [
+                format(entry.startTime, 'yyyy-MM-dd'),
+                clientName,
+                project?.name || 'Unknown Project',
+                entry.description,
+                format(entry.startTime, 'HH:mm:ss'),
+                entry.endTime ? format(entry.endTime, 'HH:mm:ss') : '',
+                formatMillisToHmsString(durationMs),
+                (durationMs / (1000 * 60 * 60)).toFixed(4)
+            ].map(escapeCsvField);
+        });
+
+        let csvContent = headers.join(',') + '\n' + rows.map(row => row.join(',')).join('\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        if (link.download !== undefined) {
+            const url = URL.createObjectURL(blob);
+            const startDate = format(dateRange.start, 'yyyy-MM-dd');
+            const endDate = format(dateRange.end, 'yyyy-MM-dd');
+            link.setAttribute("href", url);
+            link.setAttribute("download", `stratus_report_${startDate}_to_${endDate}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    };
 
     const renderDetailedReport = () => (
         <>
@@ -339,6 +404,13 @@ const ReportsPage: React.FC = () => {
                             <option value="lastMonth">Last Month</option>
                             <option value="custom">Custom</option>
                         </select>
+                        <button
+                            onClick={handleExportCSV}
+                            className="flex items-center bg-secondary text-white font-semibold px-4 py-2 rounded-lg hover:bg-emerald-600 transition-colors"
+                        >
+                            <DownloadIcon />
+                            Export CSV
+                        </button>
                         <button
                             onClick={handlePrint}
                             className="flex items-center bg-primary text-white font-semibold px-4 py-2 rounded-lg hover:bg-primary-dark transition-colors"
