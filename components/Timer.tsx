@@ -32,18 +32,16 @@ const Timer: React.FC = () => {
     const [duration, setDuration] = useState(0);
 
     useEffect(() => {
-        // FIX: Changed NodeJS.Timeout to number as setInterval in a browser context returns a number.
         let interval: number | null = null;
         if (activeTimeEntry) {
             setDescription(activeTimeEntry.description);
             setSelectedProjectId(activeTimeEntry.projectId);
             const updateDuration = () => {
                 const now = new Date();
-                const start = new Date(activeTimeEntry.startTime);
+                const start = activeTimeEntry.startTime; // This is now a Date object
                 setDuration(Math.floor((now.getTime() - start.getTime()) / 1000));
             };
             updateDuration();
-            // FIX: Explicitly use `window.setInterval` to avoid ambiguity with Node.js types and ensure the return type is `number`.
             interval = window.setInterval(updateDuration, 1000);
         } else {
             setDuration(0);

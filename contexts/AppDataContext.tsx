@@ -1,13 +1,14 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { Client, Project, TimeEntry } from '../types';
 import * as api from '../services/api';
-import { useDataStore } from './DataStoreContext';
+
+type TimeEntryWithDates = TimeEntry & { startTime: Date; endTime: Date | null };
 
 interface AppDataContextType {
   clients: Client[];
   projects: Project[];
-  timeEntries: TimeEntry[];
-  activeTimeEntry: TimeEntry | null;
+  timeEntries: TimeEntryWithDates[];
+  activeTimeEntry: TimeEntryWithDates | null;
   loading: boolean;
   error: string | null;
   
@@ -21,22 +22,20 @@ interface AppDataContextType {
   updateProject: (id: string, updates: Partial<Pick<Project, 'name' | 'isArchived'>>) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
 
-  startTimeEntry: (projectId: string, description: string) => Promise<TimeEntry | undefined>;
-  stopTimeEntry: (id: string) => Promise<TimeEntry | undefined>;
+  startTimeEntry: (projectId: string, description: string) => Promise<void>;
+  stopTimeEntry: (id: string) => Promise<void>;
   updateTimeEntry: (id: string, updates: Partial<TimeEntry>) => Promise<void>;
   deleteTimeEntry: (id: string) => Promise<void>;
   addBatchManualTimeEntries: (entries: Omit<TimeEntry, 'id' | 'isArchived'>[]) => Promise<void>;
-  getActiveTimeEntry: () => Promise<void>;
 }
 
 const AppDataContext = createContext<AppDataContextType | undefined>(undefined);
 
 export const AppDataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { isReady } = useDataStore();
   const [clients, setClients] = useState<Client[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
-  const [activeTimeEntry, setActiveTimeEntry] = useState<TimeEntry | null>(null);
+  const [timeEntries, setTimeEntries] = useState<TimeEntryWithDates[]>([]);
+  const [activeTimeEntry, setActiveTimeEntry] = useState<TimeEntryWithDates | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -63,15 +62,8 @@ export const AppDataProvider: React.FC<{ children: ReactNode }> = ({ children })
   }, []);
 
   useEffect(() => {
-    if (isReady) {
-      refreshData();
-    }
-  }, [isReady, refreshData]);
-  
-  const getActiveTimeEntry = async () => {
-    const entry = await api.getActiveTimeEntry();
-    setActiveTimeEntry(entry);
-  }
+    refreshData();
+  }, [refreshData]);
 
   const addClient = async (name: string) => {
     try {
@@ -115,25 +107,21 @@ export const AppDataProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   const startTimeEntry = async (projectId: string, description: string) => {
     if (activeTimeEntry) {
-        await stopTimeEntry(activeTimeEntry.id);
+        await api.stopTimeEntry(activeTimeEntry.id);
     }
     const newEntryData: Omit<TimeEntry, 'id' | 'isArchived'> = {
         projectId,
         description,
-        startTime: new Date(),
+        startTime: new Date().toISOString(),
         endTime: null,
     };
-    const newEntry = await api.addTimeEntry(newEntryData);
-    setActiveTimeEntry(newEntry);
+    await api.addTimeEntry(newEntryData);
     await refreshData();
-    return newEntry;
   };
 
   const stopTimeEntry = async (id: string) => {
-    const stoppedEntry = await api.stopTimeEntry(id);
-    setActiveTimeEntry(null);
+    await api.stopTimeEntry(id);
     await refreshData();
-    return stoppedEntry;
   };
   
   const updateTimeEntry = async (id: string, updates: Partial<TimeEntry>) => {
@@ -151,7 +139,6 @@ export const AppDataProvider: React.FC<{ children: ReactNode }> = ({ children })
     await refreshData();
   };
   
-
   const value = {
     clients,
     projects,
@@ -171,7 +158,6 @@ export const AppDataProvider: React.FC<{ children: ReactNode }> = ({ children })
     updateTimeEntry,
     deleteTimeEntry,
     addBatchManualTimeEntries,
-    getActiveTimeEntry
   };
 
   return <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>;

@@ -2,23 +2,24 @@ import React, { useMemo, useState, useCallback } from 'react';
 import { useAppData } from '../contexts/AppDataContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import Card from '../components/Card';
-import { TimeEntry } from '../types';
+import { TimeEntry, UserSettings } from '../types';
 import * as api from '../services/api';
-// FIX: Consolidated date-fns imports to use named exports from the main 'date-fns' package to resolve module resolution issues.
+// FIX: Some date-fns functions were not found in the main module export.
+// They are now imported directly from their submodules to fix resolution issues.
 import {
-    startOfWeek,
     endOfWeek,
     eachDayOfInterval,
     isWithinInterval,
     format,
-    subWeeks,
-    startOfMonth,
     endOfMonth,
-    subMonths,
     isSameDay,
-    startOfDay,
     endOfDay,
 } from 'date-fns';
+import startOfWeek from 'date-fns/startOfWeek';
+import subWeeks from 'date-fns/subWeeks';
+import startOfMonth from 'date-fns/startOfMonth';
+import subMonths from 'date-fns/subMonths';
+import startOfDay from 'date-fns/startOfDay';
 
 
 type Period = 'thisWeek' | 'lastWeek' | 'thisMonth' | 'lastMonth' | 'custom';
@@ -137,7 +138,7 @@ const ReportsPage: React.FC = () => {
     
     const detailedSummary = useMemo(() => {
         const projectTotals: { [key: string]: { name: string; totalMillis: number } } = {};
-        const dailyLogs: { [key: string]: TimeEntry[] } = {};
+        const dailyLogs: { [key: string]: (TimeEntry & { startTime: Date, endTime: Date | null })[] } = {};
 
         for (const entry of filteredEntries) {
             const duration = entry.endTime!.getTime() - entry.startTime.getTime();
@@ -160,19 +161,22 @@ const ReportsPage: React.FC = () => {
     }, [filteredEntries, projectMap]);
 
     const handlePrint = async () => {
-        // 1. Fetch all data, including archived, to build a complete report
+        // 1. Fetch user settings to customize the report
+        const userSettings = await api.getUserSettings();
+        const { profile, preferences } = userSettings || {};
+        const { reportSettings } = preferences || {};
+
+        // 2. Fetch all data for a complete report, ignoring UI filters
         const allClients = await api.getClients(true);
         const allProjects = await api.getProjects(true);
         const allTimeEntries = await api.getTimeEntries(true);
-    
-        // Create maps for easy lookup
+
         const clientMap = new Map(allClients.map(c => [c.id, c.name]));
-        const projectMap = new Map(allProjects.map(p => [p.id, {
+        const projectMap = new Map(allProjects.map(p => ({
             ...p,
             clientName: clientMap.get(p.clientId) || 'Unknown Client'
-        }]));
+        })).map(p => [p.id, p]));
     
-        // 2. Filter entries by the selected date range
         const printableEntries = allTimeEntries
           .filter(entry => entry.endTime && isWithinInterval(entry.startTime, dateRange))
           .sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
@@ -184,7 +188,20 @@ const ReportsPage: React.FC = () => {
         reportText += '======================================\n';
         reportText += '         STRATUS TIME REPORT\n';
         reportText += '======================================\n\n';
-        reportText += `Date Range: ${format(dateRange.start, 'MMMM d, yyyy')} - ${format(dateRange.end, 'MMMM d, yyyy')}\n\n`;
+        
+        // User Info Header
+        if (profile && reportSettings) {
+            reportText += 'FROM:\n';
+            if (reportSettings.includeName && profile.name) reportText += `${profile.name}\n`;
+            if (reportSettings.includeEmail && profile.email) reportText += `${profile.email}\n`;
+            if (reportSettings.includePhone && profile.phone) reportText += `${profile.phone}\n`;
+            reportText += '\n';
+        }
+
+        const dateFormatStr = preferences?.dateFormat || 'MMMM d, yyyy';
+        const timeFormatStr = preferences?.timeFormat === '24h' ? 'HH:mm' : 'p';
+
+        reportText += `Date Range: ${format(dateRange.start, dateFormatStr)} - ${format(dateRange.end, dateFormatStr)}\n\n`;
     
         // Project Summary
         const projectTotals = printableEntries.reduce((acc, entry) => {
@@ -211,7 +228,7 @@ const ReportsPage: React.FC = () => {
             if (!acc[dayKey]) acc[dayKey] = [];
             acc[dayKey].push(entry);
             return acc;
-        }, {} as {[key: string]: TimeEntry[]});
+        }, {} as {[key: string]: (TimeEntry & { startTime: Date, endTime: Date | null })[]});
     
         reportText += '-------------------\n';
         reportText += '    DETAILED LOG\n';
@@ -220,13 +237,13 @@ const ReportsPage: React.FC = () => {
         const sortedDays = Object.keys(entriesByDay).sort();
     
         for (const day of sortedDays) {
-            reportText += `\n--- ${format(new Date(day.replace(/-/g, '/')), 'EEEE, MMMM d, yyyy')} ---\n\n`;
+            reportText += `\n--- ${format(new Date(day.replace(/-/g, '/')), `EEEE, ${dateFormatStr}`)} ---\n\n`;
             const entries = entriesByDay[day];
             for (const entry of entries) {
                 const project = projectMap.get(entry.projectId);
                 if (!entry.endTime) continue;
                 const duration = entry.endTime.getTime() - entry.startTime.getTime();
-                const timeRange = `${format(entry.startTime, 'p')} - ${format(entry.endTime, 'p')}`;
+                const timeRange = `${format(entry.startTime, timeFormatStr)} - ${format(entry.endTime, timeFormatStr)}`;
                 reportText += `  Project: ${project?.name} (${project?.clientName})\n`;
                 reportText += `  Task:    ${entry.description}\n`;
                 reportText += `  Time:    ${timeRange} (${formatMillisToHoursMinutes(duration)})\n`;

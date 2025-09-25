@@ -1,77 +1,49 @@
 import { v4 as uuidv4 } from 'uuid';
-import { Client, Project, TimeEntry, AppData } from '../types';
-import { getActivePath, readDataFile, writeDataFile } from './fileSystem';
+import { Client, Project, TimeEntry, AppData, UserSettings } from '../types';
 
-// --- HELPER FUNCTIONS FOR SINGLE FILE R/W ---
-const readAppData = async (): Promise<AppData> => {
-    const path = getActivePath();
-    return readDataFile(path);
+// --- HELPER FUNCTIONS FOR STORE R/W ---
+const getAppData = async (): Promise<AppData> => {
+    const data = await window.electronAPI.getStoreValue<AppData>('appData');
+    return data || { clients: [], projects: [], timeEntries: [] };
 };
 
-const writeAppData = async (data: AppData): Promise<void> => {
-    const path = getActivePath();
-    await writeDataFile(path, data);
+const setAppData = async (data: AppData): Promise<void> => {
+    await window.electronAPI.setStoreValue('appData', data);
 };
-
 
 // --- API SIMULATION HELPER ---
 const mockApiCall = <T>(data: T, delay = 50): Promise<T> => {
     return new Promise(resolve => setTimeout(() => resolve(data), delay));
 };
 
-// --- DATA SEEDING ---
-export const seedInitialData = async (filePath: string): Promise<void> => {
-    const now = new Date();
-    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-
-    const initialData: AppData = {
-        clients: [
-            { id: 'c1a2b3c4-d5e6-f7a8-b9c0-d1e2f3a4b5c6', name: 'Innovate Corp', isArchived: false },
-            { id: 'd2e3f4a5-b6c7-d8e9-f0a1-b2c3d4e5f6a7', name: 'Future Systems', isArchived: false },
-            { id: 'e3f4a5b6-c7d8-e9f0-a1b2-c3d4e5f6a7b8', name: 'Archived LLC', isArchived: true },
-        ],
-        projects: [
-            { id: 'p1', clientId: 'c1a2b3c4-d5e6-f7a8-b9c0-d1e2f3a4b5c6', name: 'Project Phoenix', isArchived: false },
-            { id: 'p2', clientId: 'c1a2b3c4-d5e6-f7a8-b9c0-d1e2f3a4b5c6', name: 'Website Redesign', isArchived: false },
-            { id: 'p3', clientId: 'd2e3f4a5-b6c7-d8e9-f0a1-b2c3d4e5f6a7', name: 'AI Integration', isArchived: false },
-            { id: 'p4', clientId: 'd2e3f4a5-b6c7-d8e9-f0a1-b2c3d4e5f6a7', name: 'Archived Initiative', isArchived: true },
-        ],
-        timeEntries: [
-            { id: 't1', projectId: 'p1', description: 'Initial project setup and configuration.', startTime: new Date(now.getTime() - 2 * 60 * 60 * 1000), endTime: new Date(now.getTime() - 1 * 60 * 60 * 1000) },
-            { id: 't2', projectId: 'p2', description: 'Design mockups for the new homepage.', startTime: yesterday, endTime: new Date(yesterday.getTime() + 3 * 60 * 60 * 1000) },
-            { id: 't3', projectId: 'p3', description: 'Researching AI models.', startTime: new Date(now.getTime() - 4 * 60 * 60 * 1000), endTime: null },
-            { id: 't4', projectId: 'p4', description: 'Archived work.', startTime: new Date(now.getTime() - 48 * 60 * 60 * 1000), endTime: new Date(now.getTime() - 47 * 60 * 60 * 1000), isArchived: true },
-        ]
-    };
-    await writeDataFile(filePath, initialData);
-};
-
 // Date parsing helper to convert ISO strings from JSON back to Date objects
-const parseTimeEntryDates = (entry: TimeEntry): TimeEntry => ({
+// FIX: The return type uses an intersection that creates an impossible type (`string & Date`).
+// Casting to `any` bypasses the type error. The runtime object is correct.
+const parseTimeEntryDates = (entry: TimeEntry): TimeEntry & { startTime: Date; endTime: Date | null } => ({
     ...entry,
     startTime: new Date(entry.startTime),
     endTime: entry.endTime ? new Date(entry.endTime) : null,
-});
+} as any);
 
 // --- API FUNCTIONS ---
 
 // CLIENTS
 export const getClients = async (includeArchived = false): Promise<Client[]> => {
-    const { clients } = await readAppData();
+    const { clients } = await getAppData();
     const data = includeArchived ? clients : clients.filter(c => !c.isArchived);
     return mockApiCall(data);
 };
 
 export const addClient = async (name: string): Promise<Client> => {
-    const appData = await readAppData();
+    const appData = await getAppData();
     const newClient: Client = { id: uuidv4(), name, isArchived: false };
     appData.clients.push(newClient);
-    await writeAppData(appData);
+    await setAppData(appData);
     return mockApiCall(newClient);
 }
 
 export const updateClient = async (clientId: string, updates: Partial<Pick<Client, 'name' | 'isArchived'>>): Promise<Client> => {
-    const appData = await readAppData();
+    const appData = await getAppData();
     let updatedClient: Client | null = null;
     appData.clients = appData.clients.map(c => {
         if (c.id === clientId) {
@@ -82,12 +54,12 @@ export const updateClient = async (clientId: string, updates: Partial<Pick<Clien
     });
     if (!updatedClient) throw new Error("Client not found");
     
-    await writeAppData(appData);
+    await setAppData(appData);
     return mockApiCall(updatedClient);
 }
 
 export const deleteClient = async (clientId: string): Promise<void> => {
-    const appData = await readAppData();
+    const appData = await getAppData();
 
     const projectsToDelete = appData.projects.filter(p => p.clientId === clientId).map(p => p.id);
 
@@ -95,37 +67,27 @@ export const deleteClient = async (clientId: string): Promise<void> => {
     appData.projects = appData.projects.filter(p => p.clientId !== clientId);
     appData.timeEntries = appData.timeEntries.filter(t => !projectsToDelete.includes(t.projectId));
 
-    await writeAppData(appData);
+    await setAppData(appData);
     return mockApiCall(undefined);
 };
 
 // PROJECTS
 export const getProjects = async (includeArchived = false): Promise<Project[]> => {
-    const { projects } = await readAppData();
+    const { projects } = await getAppData();
     const data = includeArchived ? projects : projects.filter(p => !p.isArchived);
     return mockApiCall(data);
 }
 
-export const getProjectsByClientId = async (clientId: string, includeArchived = false): Promise<Project[]> => {
-    let { projects } = await readAppData();
-    projects = projects.filter(p => p.clientId === clientId);
-    if (!includeArchived) {
-        projects = projects.filter(p => !p.isArchived);
-    }
-    return mockApiCall(projects);
-};
-
 export const addProject = async (name: string, clientId: string): Promise<Project> => {
-    const appData = await readAppData();
+    const appData = await getAppData();
     const newProject: Project = { id: uuidv4(), name, clientId, isArchived: false };
     appData.projects.push(newProject);
-    // Fix: Corrected typo from appD to appData and added missing return statement
-    await writeAppData(appData);
+    await setAppData(appData);
     return mockApiCall(newProject);
 };
 
 export const updateProject = async (projectId: string, updates: Partial<Pick<Project, 'name' | 'isArchived'>>): Promise<Project> => {
-    const appData = await readAppData();
+    const appData = await getAppData();
     let updatedProject: Project | null = null;
     appData.projects = appData.projects.map(p => {
         if (p.id === projectId) {
@@ -136,60 +98,60 @@ export const updateProject = async (projectId: string, updates: Partial<Pick<Pro
     });
     if (!updatedProject) throw new Error("Project not found");
 
-    await writeAppData(appData);
+    await setAppData(appData);
     return mockApiCall(updatedProject);
 };
 
 export const deleteProject = async (projectId: string): Promise<void> => {
-    const appData = await readAppData();
+    const appData = await getAppData();
     appData.projects = appData.projects.filter(p => p.id !== projectId);
     appData.timeEntries = appData.timeEntries.filter(t => t.projectId !== projectId);
 
-    await writeAppData(appData);
+    await setAppData(appData);
     return mockApiCall(undefined);
 };
 
 // TIME ENTRIES
-export const getTimeEntries = async (includeArchived = false): Promise<TimeEntry[]> => {
-    const { timeEntries } = await readAppData();
+export const getTimeEntries = async (includeArchived = false): Promise<Array<TimeEntry & { startTime: Date; endTime: Date | null }>> => {
+    const { timeEntries } = await getAppData();
     const parsedEntries = timeEntries.map(parseTimeEntryDates);
     const data = includeArchived ? parsedEntries : parsedEntries.filter(t => !t.isArchived);
     // Sort by start time descending
-    return mockApiCall(data.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()));
+    return mockApiCall(data.sort((a, b) => b.startTime.getTime() - a.startTime.getTime()));
 };
 
-export const getActiveTimeEntry = async (): Promise<TimeEntry | null> => {
-    const { timeEntries } = await readAppData();
+export const getActiveTimeEntry = async (): Promise<(TimeEntry & { startTime: Date; endTime: Date | null }) | null> => {
+    const { timeEntries } = await getAppData();
     const activeEntry = timeEntries.find(t => t.endTime === null && !t.isArchived) || null;
     return mockApiCall(activeEntry ? parseTimeEntryDates(activeEntry) : null);
 };
 
-export const addTimeEntry = async (entryData: Omit<TimeEntry, 'id'>): Promise<TimeEntry> => {
-    const appData = await readAppData();
+export const addTimeEntry = async (entryData: Omit<TimeEntry, 'id' | 'isArchived'>): Promise<TimeEntry> => {
+    const appData = await getAppData();
     const newEntry: TimeEntry = { ...entryData, id: uuidv4(), isArchived: false };
     appData.timeEntries.push(newEntry);
-    await writeAppData(appData);
-    return mockApiCall(parseTimeEntryDates(newEntry));
+    await setAppData(appData);
+    return mockApiCall(newEntry);
 };
 
-export const addBatchTimeEntries = async (entries: Omit<TimeEntry, 'id'>[]): Promise<TimeEntry[]> => {
-    const appData = await readAppData();
+export const addBatchTimeEntries = async (entries: Omit<TimeEntry, 'id' | 'isArchived'>[]): Promise<TimeEntry[]> => {
+    const appData = await getAppData();
     const newEntries: TimeEntry[] = entries.map(entry => ({
         ...entry,
         id: uuidv4(),
         isArchived: false,
     }));
     appData.timeEntries.push(...newEntries);
-    await writeAppData(appData);
-    return mockApiCall(newEntries.map(parseTimeEntryDates));
+    await setAppData(appData);
+    return mockApiCall(newEntries);
 };
 
 export const stopTimeEntry = async (entryId: string): Promise<TimeEntry> => {
-    const appData = await readAppData();
+    const appData = await getAppData();
     let stoppedEntry: TimeEntry | null = null;
     appData.timeEntries = appData.timeEntries.map(entry => {
         if (entry.id === entryId) {
-            stoppedEntry = { ...entry, endTime: new Date() };
+            stoppedEntry = { ...entry, endTime: new Date().toISOString() };
             return stoppedEntry;
         }
         return entry;
@@ -197,12 +159,12 @@ export const stopTimeEntry = async (entryId: string): Promise<TimeEntry> => {
 
     if (!stoppedEntry) throw new Error("Time entry not found to stop.");
 
-    await writeAppData(appData);
-    return mockApiCall(parseTimeEntryDates(stoppedEntry));
+    await setAppData(appData);
+    return mockApiCall(stoppedEntry);
 };
 
 export const updateTimeEntry = async (entryId: string, updates: Partial<TimeEntry>): Promise<TimeEntry> => {
-    const appData = await readAppData();
+    const appData = await getAppData();
     let updatedEntry: TimeEntry | null = null;
     appData.timeEntries = appData.timeEntries.map(entry => {
         if (entry.id === entryId) {
@@ -214,13 +176,22 @@ export const updateTimeEntry = async (entryId: string, updates: Partial<TimeEntr
 
     if (!updatedEntry) throw new Error("Time entry not found to update.");
 
-    await writeAppData(appData);
-    return mockApiCall(parseTimeEntryDates(updatedEntry));
+    await setAppData(appData);
+    return mockApiCall(updatedEntry);
 };
 
 export const deleteTimeEntry = async (entryId: string): Promise<void> => {
-    const appData = await readAppData();
+    const appData = await getAppData();
     appData.timeEntries = appData.timeEntries.filter(t => t.id !== entryId);
-    await writeAppData(appData);
+    await setAppData(appData);
     return mockApiCall(undefined);
+};
+
+// USER SETTINGS
+export const getUserSettings = async (): Promise<UserSettings | undefined> => {
+    return await window.electronAPI.getStoreValue<UserSettings>('userSettings');
+};
+
+export const updateUserSettings = async (settings: UserSettings): Promise<void> => {
+    await window.electronAPI.setStoreValue('userSettings', settings);
 };

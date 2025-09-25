@@ -1,43 +1,79 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
-const fs = require('fs');
-const os = require('os');
+const Store = require('electron-store');
+const { v4: uuidv4 } = require('uuid');
+
 
 const isDev = process.env.NODE_ENV !== 'production';
 
-// --- Persistent Store for recent files and settings ---
-class Store {
-  constructor(opts) {
-    const userDataPath = app.getPath('userData');
-    this.path = path.join(userDataPath, opts.configName + '.json');
-    this.data = this.parseDataFile(this.path, opts.defaults);
-  }
-
-  get(key) {
-    return this.data[key];
-  }
-
-  set(key, val) {
-    this.data[key] = val;
-    fs.writeFileSync(this.path, JSON.stringify(this.data));
-  }
-
-  parseDataFile(filePath, defaults) {
-    try {
-      return JSON.parse(fs.readFileSync(filePath));
-    } catch (error) {
-      return defaults;
-    }
-  }
-}
-
-const store = new Store({
-  configName: 'user-preferences',
-  defaults: {
-    lastActiveFile: null,
-    recentFiles: [],
+// --- Schema for the store ---
+const schema = {
+  appData: {
+    type: 'object',
+    properties: {
+        clients: { type: 'array' },
+        projects: { type: 'array' },
+        timeEntries: { type: 'array' }
+    },
   },
-});
+  userSettings: {
+    type: 'object',
+    properties: {
+        profile: { type: 'object' },
+        preferences: { type: 'object' }
+    },
+  }
+};
+
+const store = new Store({ schema });
+
+// --- Seed Initial Data on first launch ---
+const seedInitialData = () => {
+    const now = new Date();
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    return {
+        clients: [
+            { id: 'c1a2b3c4-d5e6-f7a8-b9c0-d1e2f3a4b5c6', name: 'Innovate Corp', isArchived: false },
+            { id: 'd2e3f4a5-b6c7-d8e9-f0a1-b2c3d4e5f6a7', name: 'Future Systems', isArchived: false },
+        ],
+        projects: [
+            { id: 'p1', clientId: 'c1a2b3c4-d5e6-f7a8-b9c0-d1e2f3a4b5c6', name: 'Project Phoenix', isArchived: false },
+            { id: 'p2', clientId: 'c1a2b3c4-d5e6-f7a8-b9c0-d1e2f3a4b5c6', name: 'Website Redesign', isArchived: false },
+            { id: 'p3', clientId: 'd2e3f4a5-b6c7-d8e9-f0a1-b2c3d4e5f6a7', name: 'AI Integration', isArchived: false },
+        ],
+        timeEntries: [
+            { id: 't1', projectId: 'p1', description: 'Initial project setup and configuration.', startTime: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(), endTime: new Date(now.getTime() - 1 * 60 * 60 * 1000).toISOString() },
+            { id: 't2', projectId: 'p2', description: 'Design mockups for the new homepage.', startTime: yesterday.toISOString(), endTime: new Date(yesterday.getTime() + 3 * 60 * 60 * 1000).toISOString() },
+            { id: 't3', projectId: 'p3', description: 'Researching AI models.', startTime: new Date(now.getTime() - 4 * 60 * 60 * 1000).toISOString(), endTime: null },
+        ]
+    };
+};
+
+const initializeStore = () => {
+  if (!store.get('appData')) {
+    store.set('appData', seedInitialData());
+  }
+  if (!store.get('userSettings')) {
+    store.set('userSettings', {
+      profile: {
+        name: '',
+        email: '',
+        phone: '',
+        profilePicture: null
+      },
+      preferences: {
+        dateFormat: 'MMMM d, yyyy',
+        timeFormat: '12h',
+        theme: 'system',
+        reportSettings: {
+          includeName: true,
+          includeEmail: true,
+          includePhone: false,
+        }
+      }
+    });
+  }
+};
 
 
 function createWindow() {
@@ -63,6 +99,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  initializeStore();
   createWindow();
 
   app.on('activate', () => {
@@ -76,46 +113,6 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
   }
-});
-
-// --- IPC Handlers for File System ---
-
-ipcMain.handle('dialog:openFile', async () => {
-    const { canceled, filePaths } = await dialog.showOpenDialog({
-        properties: ['openFile'],
-        filters: [{ name: 'Stratus Data File', extensions: ['json'] }]
-    });
-    if (!canceled) {
-        return filePaths[0];
-    }
-});
-
-ipcMain.handle('dialog:saveFile', async () => {
-    const { canceled, filePath } = await dialog.showSaveDialog({
-        title: 'Create New Data File',
-        defaultPath: `stratus-data-${Date.now()}.json`,
-        filters: [{ name: 'Stratus Data File', extensions: ['json'] }]
-    });
-    if (!canceled) {
-        return filePath;
-    }
-});
-
-ipcMain.handle('fs:readFile', async (event, filePath) => {
-    try {
-        return fs.readFileSync(filePath, 'utf-8');
-    } catch (error) {
-        console.error('Failed to read file:', error);
-        return null;
-    }
-});
-
-ipcMain.handle('fs:writeFile', async (event, filePath, content) => {
-    try {
-        fs.writeFileSync(filePath, content, 'utf-8');
-    } catch (error) {
-        console.error('Failed to write file:', error);
-    }
 });
 
 // --- IPC Handlers for Store ---

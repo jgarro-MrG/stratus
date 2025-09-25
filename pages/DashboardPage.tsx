@@ -17,7 +17,7 @@ const formatDuration = (start: Date, end: Date | null): string => {
     return `${hours}h ${minutes}m`;
 };
 
-const RecentActivityItem: React.FC<{ entry: TimeEntry, project?: Project, client?: Client }> = ({ entry, project, client }) => {
+const RecentActivityItem: React.FC<{ entry: TimeEntry & { startTime: Date, endTime: Date | null }, project?: Project, client?: Client }> = ({ entry, project, client }) => {
     return (
         <div className="flex items-center justify-between py-3">
             <div>
@@ -106,10 +106,10 @@ const DashboardPage: React.FC = () => {
             }
 
             entriesToSave.push({
-            projectId: entry.projectId,
-            description: entry.description.trim(),
-            startTime: start,
-            endTime: end,
+                projectId: entry.projectId,
+                description: entry.description.trim(),
+                startTime: start.toISOString(),
+                endTime: end.toISOString(),
             });
         }
 
