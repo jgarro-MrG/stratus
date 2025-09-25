@@ -3,8 +3,7 @@ import { NavLink } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 
 const Logo: React.FC = () => {
-    const { effectiveTheme } = useTheme();
-    const logoSrc = effectiveTheme === 'dark' ? '/assets/logo-dark.svg' : '/assets/logo-light.svg';
+    const logoSrc = '/assets/logo.svg';
     return <img src={logoSrc} alt="Stratus Time Tracker Logo" className="h-12 w-12" />;
 };
 
