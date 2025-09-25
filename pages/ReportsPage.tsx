@@ -2,8 +2,8 @@ import React, { useMemo } from 'react';
 import { useAppData } from '../contexts/AppDataContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import Card from '../components/Card';
-// FIX: Changed date-fns import to a namespace import to resolve module loading issues.
-import * as dateFns from 'date-fns';
+// FIX: Changed to named imports for date-fns to resolve module loading issues.
+import { startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, format } from 'date-fns';
 
 const ReportsPage: React.FC = () => {
     const { timeEntries, projects } = useAppData();
@@ -12,12 +12,12 @@ const ReportsPage: React.FC = () => {
 
     const weeklySummaryData = useMemo(() => {
         const now = new Date();
-        const weekStart = dateFns.startOfWeek(now, { weekStartsOn: 1 });
-        const weekEnd = dateFns.endOfWeek(now, { weekStartsOn: 1 });
-        const daysInWeek = dateFns.eachDayOfInterval({ start: weekStart, end: weekEnd });
+        const weekStart = startOfWeek(now, { weekStartsOn: 1 });
+        const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
+        const daysInWeek = eachDayOfInterval({ start: weekStart, end: weekEnd });
 
         return daysInWeek.map(day => {
-            const entriesForDay = timeEntries.filter(entry => dateFns.isSameDay(entry.startTime, day) && entry.endTime);
+            const entriesForDay = timeEntries.filter(entry => isSameDay(entry.startTime, day) && entry.endTime);
             const totalMillis = entriesForDay.reduce((acc, entry) => {
                 if (entry.endTime) {
                    return acc + (entry.endTime.getTime() - entry.startTime.getTime());
@@ -27,7 +27,7 @@ const ReportsPage: React.FC = () => {
             const totalHours = totalMillis / (1000 * 60 * 60);
 
             return {
-                name: dateFns.format(day, 'EEE'),
+                name: format(day, 'EEE'),
                 hours: parseFloat(totalHours.toFixed(2)),
             };
         });

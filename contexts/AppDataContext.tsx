@@ -26,6 +26,7 @@ interface AppDataContextType {
   updateTimeEntry: (id: string, updates: Partial<TimeEntry>) => Promise<void>;
   deleteTimeEntry: (id: string) => Promise<void>;
   addManualTimeEntry: (entryData: Omit<TimeEntry, 'id' | 'isArchived'>) => Promise<void>;
+  addBatchManualTimeEntries: (entries: Omit<TimeEntry, 'id' | 'isArchived'>[]) => Promise<void>;
   getActiveTimeEntry: () => Promise<void>;
 }
 
@@ -150,6 +151,11 @@ export const AppDataProvider: React.FC<{ children: ReactNode }> = ({ children })
     await api.addTimeEntry(entryData);
     await refreshData();
   };
+
+  const addBatchManualTimeEntries = async (entries: Omit<TimeEntry, 'id' | 'isArchived'>[]) => {
+    await api.addBatchTimeEntries(entries);
+    await refreshData();
+  };
   
 
   const value = {
@@ -171,6 +177,7 @@ export const AppDataProvider: React.FC<{ children: ReactNode }> = ({ children })
     updateTimeEntry,
     deleteTimeEntry,
     addManualTimeEntry,
+    addBatchManualTimeEntries,
     getActiveTimeEntry
   };
 
