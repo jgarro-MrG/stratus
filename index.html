@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.tailwindcss.com; style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; object-src 'none';" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Stratus Time Tracker - Freelancer Time Tracking</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      :root {
+        --color-primary: 59 130 246; /* blue-500 */
+        --color-primary-dark: 37 99 235; /* blue-600 */
+        --color-secondary: 16 185 129; /* emerald-500 */
+        --color-background: 241 245 249; /* slate-100 */
+        --color-surface: 255 255 255; /* white */
+        --color-text-primary: 30 41 59; /* slate-800 */
+        --color-text-secondary: 71 85 105; /* slate-600 */
+        --color-border: 226 232 240; /* slate-200 */
+      }
+
+      .dark {
+        --color-primary: 59 130 246; /* blue-500 */
+        --color-primary-dark: 96 165 250; /* blue-400 */
+        --color-secondary: 52 211 153; /* emerald-400 */
+        --color-background: 15 23 42; /* slate-900 */
+        --color-surface: 30 41 59; /* slate-800 */
+        --color-text-primary: 241 245 249; /* slate-100 */
+        --color-text-secondary: 148 163 184; /* slate-400 */
+        --color-border: 51 65 85; /* slate-700 */
+      }
+      
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      @keyframes scaleUp {
+        from { transform: scale(0.95); opacity: 0; }
+        to { transform: scale(1); opacity: 1; }
+      }
+      .animate-fadeIn {
+        animation: fadeIn 0.2s ease-out forwards;
+      }
+      .animate-scaleUp {
+        animation: scaleUp 0.2s ease-out forwards;
+      }
+
+      @media print {
+        /* Ensure light mode colors for printing */
+        .dark {
+          --color-primary: 59 130 246;
+          --color-background: 255 255 255;
+          --color-surface: 255 255 255;
+          --color-text-primary: 0 0 0;
+          --color-text-secondary: 71 85 105;
+          --color-border: 226 232 240;
+        }
+
+        body {
+          background-color: white !important;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        
+        .app-sidebar, .app-mobile-header {
+          display: none;
+        }
+
+        #root > .flex {
+          display: block;
+          height: auto;
+        }
+        
+        .app-main-content {
+          overflow: visible;
+          height: auto;
+          flex: none;
+          width: 100%;
+        }
+      }
+    </style>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              'primary': 'rgb(var(--color-primary) / <alpha-value>)',
+              'primary-dark': 'rgb(var(--color-primary-dark) / <alpha-value>)',
+              'secondary': 'rgb(var(--color-secondary) / <alpha-value>)',
+              'background': 'rgb(var(--color-background) / <alpha-value>)',
+              'surface': 'rgb(var(--color-surface) / <alpha-value>)',
+              'text-primary': 'rgb(var(--color-text-primary) / <alpha-value>)',
+              'text-secondary': 'rgb(var(--color-text-secondary) / <alpha-value>)',
+              'border': 'rgb(var(--color-border) / <alpha-value>)',
+            }
+          }
+        }
+      }
+    </script>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@^19.1.1",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
+    "react/": "https://aistudiocdn.com/react@^19.1.1/",
+    "react-router-dom": "https://aistudiocdn.com/react-router-dom@^7.9.1",
+    "recharts": "https://aistudiocdn.com/recharts@^3.2.1",
+    "uuid": "https://aistudiocdn.com/uuid@^13.0.0",
+    "vite": "https://aistudiocdn.com/vite@^7.1.7",
+    "@vitejs/plugin-react": "https://aistudiocdn.com/vite@^5.0.3"
+  }
+}
+</script>
+</head>
+  <body class="bg-background text-text-primary transition-colors duration-300">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
