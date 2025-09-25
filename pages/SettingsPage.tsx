@@ -12,12 +12,53 @@ const UserIcon = () => (
     </svg>
 );
 
+// --- Smart Image Processing Utility ---
+const processImage = (file: File, maxSize = 256): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                if (!ctx) return reject(new Error('Could not get canvas context'));
+
+                let { width, height } = img;
+                let sx = 0, sy = 0, sWidth = width, sHeight = height;
+
+                // 1. Resize and crop to a square
+                if (width > height) {
+                    sWidth = height;
+                    sx = (width - height) / 2;
+                } else {
+                    sHeight = width;
+                    sy = (height - width) / 2;
+                }
+                
+                canvas.width = maxSize;
+                canvas.height = maxSize;
+
+                ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, maxSize, maxSize);
+                
+                // 2. Compress and convert to JPEG
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.9); // 90% quality
+                resolve(dataUrl);
+            };
+            img.onerror = reject;
+            img.src = event.target?.result as string;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+};
+
 
 const SettingsPage: React.FC = () => {
     const { addToast } = useToast();
     const { setTheme } = useTheme();
     const [settings, setSettings] = useState<UserSettings | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [isProcessingImage, setIsProcessingImage] = useState(false);
 
     const fetchSettings = useCallback(async () => {
         setIsLoading(true);
@@ -68,17 +109,24 @@ const SettingsPage: React.FC = () => {
         });
     };
 
-    const handleProfilePictureChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const handleProfilePictureChange = async (e: ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0] && settings) {
             const file = e.target.files[0];
-            const reader = new FileReader();
-            reader.onloadend = () => {
+            setIsProcessingImage(true);
+            try {
+                const processedImage = await processImage(file);
                 setSettings({
                     ...settings,
-                    profile: { ...settings.profile, profilePicture: reader.result as string },
+                    profile: { ...settings.profile, profilePicture: processedImage },
                 });
-            };
-            reader.readAsDataURL(file);
+            } catch (error) {
+                console.error("Image processing failed:", error);
+                addToast("Could not process image. Please try another.", "error");
+            } finally {
+                setIsProcessingImage(false);
+            }
+            // Reset file input to allow re-uploading the same file
+            e.target.value = '';
         }
     };
 
@@ -117,11 +165,16 @@ const SettingsPage: React.FC = () => {
             <Card title="User Profile">
                 <div className="flex flex-col md:flex-row items-center gap-8">
                     <div className="flex flex-col items-center">
-                        <div className="w-32 h-32 rounded-full bg-background flex items-center justify-center overflow-hidden border border-border mb-4">
+                        <div className="w-32 h-32 rounded-full bg-background flex items-center justify-center overflow-hidden border border-border mb-4 relative">
                             {settings.profile.profilePicture ? (
                                 <img src={settings.profile.profilePicture} alt="Profile" className="w-full h-full object-cover" />
                             ) : (
                                 <UserIcon />
+                            )}
+                            {isProcessingImage && (
+                                <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                                    <Spinner className="w-8 h-8 text-white" />
+                                </div>
                             )}
                         </div>
                         <input
@@ -130,12 +183,13 @@ const SettingsPage: React.FC = () => {
                             className="hidden"
                             accept="image/png, image/jpeg"
                             onChange={handleProfilePictureChange}
+                            disabled={isProcessingImage}
                         />
                         <label
                             htmlFor="profilePictureInput"
-                            className="cursor-pointer text-sm text-primary hover:text-primary-dark font-semibold"
+                            className={`cursor-pointer text-sm text-primary hover:text-primary-dark font-semibold ${isProcessingImage ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
-                            Change Picture
+                            {isProcessingImage ? 'Processing...' : 'Change Picture'}
                         </label>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 flex-grow w-full">
