@@ -2,12 +2,8 @@ import React, { useMemo } from 'react';
 import { useAppData } from '../contexts/AppDataContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import Card from '../components/Card';
-// FIX: Import date-fns functions from their specific paths to resolve module loading issues.
-import startOfWeek from 'date-fns/startOfWeek';
-import endOfWeek from 'date-fns/endOfWeek';
-import eachDayOfInterval from 'date-fns/eachDayOfInterval';
-import isSameDay from 'date-fns/isSameDay';
-import format from 'date-fns/format';
+// FIX: Import date-fns functions from the main package to resolve call signature errors.
+import { startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, format } from 'date-fns';
 
 const ReportsPage: React.FC = () => {
     const { timeEntries, projects } = useAppData();
