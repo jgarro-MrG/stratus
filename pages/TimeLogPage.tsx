@@ -8,8 +8,6 @@ import { TimeEntry } from '../types';
 import { format, differenceInMilliseconds } from 'date-fns';
 import { v4 as uuidv4 } from 'uuid';
 import { useFormatting } from '../hooks/useFormatting';
-import { GoogleGenAI, Type } from '@google/genai';
-import Spinner from '../components/Spinner';
 
 type TimeEntryWithDates = TimeEntry & { startTime: Date; endTime: Date | null };
 
@@ -67,8 +65,6 @@ const TimeLogPage: React.FC = () => {
     
     // Form states
     const [batchEntries, setBatchEntries] = useState<BatchEntry[]>([{ key: uuidv4(), projectId: '', description: '', startTime: '', endTime: '' }]);
-    const [aiNotes, setAiNotes] = useState('');
-    const [isAiLoading, setIsAiLoading] = useState(false);
 
     // Confirmation modal state
     const [modalConfig, setModalConfig] = useState({ title: '', message: '', onConfirm: async () => {}, confirmText: 'Confirm', isDestructive: false });
@@ -169,87 +165,6 @@ const TimeLogPage: React.FC = () => {
         }
     };
 
-    const handleGenerateWithAi = async () => {
-        if (!process.env.API_KEY) {
-            addToast('Gemini API key is not configured.', 'error');
-            return;
-        }
-        if (!aiNotes.trim()) {
-            addToast('Please enter some notes to generate entries from.', 'warning');
-            return;
-        }
-        
-        setIsAiLoading(true);
-        try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            const projectContext = projectOptions.map(p => `"${p.name}" (id: ${p.id})`).join(', ');
-
-            const schema = {
-                type: Type.ARRAY,
-                items: {
-                    type: Type.OBJECT,
-                    properties: {
-                        projectId: { type: Type.STRING, description: 'The ID of the project that best matches the task.' },
-                        description: { type: Type.STRING, description: 'A concise description of the task performed.' },
-                        startTime: { type: Type.STRING, description: `The start time of the task in 'yyyy-MM-ddTHH:mm' format.` },
-                        endTime: { type: Type.STRING, description: `The end time of the task in 'yyyy-MM-ddTHH:mm' format.` },
-                    },
-                    required: ['projectId', 'description', 'startTime', 'endTime'],
-                },
-            };
-
-            const prompt = `You are an intelligent time-tracking assistant. Your task is to parse unstructured text notes and convert them into a structured JSON array of time entries.
-
-Today's date is: ${new Date().toISOString()}
-
-Here is the list of available projects the user can log time against:
-[${projectContext}]
-
-Please analyze the user's notes below. For each distinct task, create a time entry object.
-- Match the task description to the most relevant project ID from the list above.
-- Infer the start and end times. Be precise. If a duration is mentioned (e.g., "for 2 hours"), calculate the endTime based on the startTime.
-- Dates can be relative (e.g., "yesterday", "Monday"). Calculate the absolute date and time.
-- The final output must be only the JSON array, adhering to the specified schema.
-
-User's notes:
----
-${aiNotes}
----`;
-
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: prompt,
-                config: {
-                    responseMimeType: "application/json",
-                    responseSchema: schema,
-                },
-            });
-
-            const parsedEntries = JSON.parse(response.text);
-            
-            if (Array.isArray(parsedEntries) && parsedEntries.length > 0) {
-                 const newBatchEntries = parsedEntries.map(entry => ({
-                    key: uuidv4(),
-                    projectId: entry.projectId || '',
-                    description: entry.description || '',
-                    startTime: entry.startTime ? formatForDateTimeLocal(entry.startTime) : '',
-                    endTime: entry.endTime ? formatForDateTimeLocal(entry.endTime) : '',
-                }));
-                setBatchEntries(newBatchEntries);
-                addToast('AI successfully generated time entries!', 'success');
-            } else {
-                 addToast('AI could not generate entries from the notes.', 'info');
-            }
-
-        } catch (error) {
-            console.error("AI Generation Error:", error);
-            addToast('An error occurred while generating entries.', 'error');
-        } finally {
-            setIsAiLoading(false);
-        }
-    };
-
-
     return (
         <div className="space-y-8">
             <div className="flex justify-between items-center flex-wrap gap-4">
@@ -303,28 +218,8 @@ ${aiNotes}
 
             <Modal isOpen={isBatchModalOpen} onClose={() => setIsBatchModalOpen(false)} title="Add New Entries" size="4xl">
                 <div className="space-y-4">
-                    <div className="border border-border rounded-lg p-4 bg-background">
-                        <label htmlFor="ai-notes" className="block text-sm font-medium text-text-secondary mb-2">✨ Magic Entry with AI</label>
-                        <textarea
-                            id="ai-notes"
-                            rows={3}
-                            value={aiNotes}
-                            onChange={(e) => setAiNotes(e.target.value)}
-                            className="w-full px-3 py-2 border border-border rounded-lg bg-surface focus:outline-none focus:ring-2 focus:ring-primary"
-                            placeholder="e.g., Worked on Phoenix project from 9 to 11am yesterday. Then spent about 3 hours on the Website Redesign in the afternoon."
-                        />
-                         <button 
-                            onClick={handleGenerateWithAi} 
-                            disabled={isAiLoading}
-                            className="mt-2 px-4 py-2 rounded-lg bg-secondary text-white hover:bg-emerald-600 transition-colors flex items-center gap-2 disabled:bg-opacity-50 disabled:cursor-not-allowed"
-                        >
-                            {isAiLoading ? <><Spinner className="w-4 h-4" /> Generating...</> : 'Generate with AI'}
-                        </button>
-                    </div>
-
-                    <div className="text-center text-sm text-text-secondary my-2">OR</div>
-
-                    <div className="overflow-x-auto max-h-[40vh]">
+                    <p className="text-sm text-text-secondary">Manually add multiple time entries at once.</p>
+                    <div className="overflow-x-auto max-h-[50vh]">
                         <table className="min-w-full text-left text-sm">
                             <thead className="bg-background sticky top-0"><tr className="border-b border-border"><th className="p-2 font-semibold text-text-secondary w-1/4">Project</th><th className="p-2 font-semibold text-text-secondary w-1/3">Description</th><th className="p-2 font-semibold text-text-secondary">Start Time</th><th className="p-2 font-semibold text-text-secondary">End Time</th><th className="p-2 font-semibold text-text-secondary"></th></tr></thead>
                             <tbody>{batchEntries.map((entry, index) => (<tr key={entry.key} className="border-b border-border last:border-b-0">
