@@ -32,7 +32,8 @@ const Timer: React.FC = () => {
     const [duration, setDuration] = useState(0);
 
     useEffect(() => {
-        let interval: NodeJS.Timeout | null = null;
+        // FIX: Changed NodeJS.Timeout to number as setInterval in a browser context returns a number.
+        let interval: number | null = null;
         if (activeTimeEntry) {
             setDescription(activeTimeEntry.description);
             setSelectedProjectId(activeTimeEntry.projectId);
