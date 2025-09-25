@@ -1,19 +1,47 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useAppData } from '../contexts/AppDataContext';
 import { useToast } from '../contexts/ToastContext';
 import Card from '../components/Card';
 import Modal from '../components/Modal';
 import { Client, Project } from '../types';
+import ActionMenu from '../components/ActionMenu';
+
+const ToggleSwitch: React.FC<{ checked: boolean; onChange: (checked: boolean) => void; label: string }> = ({ checked, onChange, label }) => (
+    <label htmlFor="toggle" className="flex items-center cursor-pointer">
+        <div className="relative">
+            <input id="toggle" type="checkbox" className="sr-only" checked={checked} onChange={e => onChange(e.target.checked)} />
+            <div className={`block w-14 h-8 rounded-full transition ${checked ? 'bg-primary' : 'bg-border'}`}></div>
+            <div className={`dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition-transform ${checked ? 'translate-x-6' : ''}`}></div>
+        </div>
+        <div className="ml-3 text-text-secondary font-medium">{label}</div>
+    </label>
+);
 
 const ProjectsPage: React.FC = () => {
-    const { clients, projects, addClient, addProject, loading } = useAppData();
+    const { clients, projects, addClient, addProject, loading, updateClient, updateProject, deleteClient, deleteProject } = useAppData();
     const { addToast } = useToast();
+    
+    // View state
+    const [showArchived, setShowArchived] = useState(false);
+
+    // Modal states
     const [isClientModalOpen, setIsClientModalOpen] = useState(false);
     const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
+    const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+    
+    // Form states
     const [newClientName, setNewClientName] = useState('');
     const [newProjectName, setNewProjectName] = useState('');
     const [selectedClientId, setSelectedClientId] = useState<string>('');
     
+    // Confirmation modal state
+    const [modalConfig, setModalConfig] = useState({ title: '', message: '', onConfirm: async () => {}, confirmText: 'Confirm', isDestructive: false });
+
+    const openConfirmModal = (config: Omit<typeof modalConfig, 'onConfirm'> & { onConfirm: () => Promise<void> }) => {
+        setModalConfig(config);
+        setIsConfirmModalOpen(true);
+    };
+
     const handleAddClient = async () => {
         if (newClientName.trim()) {
             await addClient(newClientName.trim());
@@ -36,55 +64,103 @@ const ProjectsPage: React.FC = () => {
             addToast('Project name cannot be empty.', 'warning');
         }
     };
-
-    const projectsByClient = clients
-        .filter(client => !client.isArchived)
-        .map(client => ({
-            ...client,
-            projects: projects.filter(p => p.clientId === client.id && !p.isArchived)
-    }));
     
     const openNewProjectModal = (clientId: string) => {
         setSelectedClientId(clientId);
         setIsProjectModalOpen(true);
     }
+    
+    const clientsToDisplay = useMemo(() => 
+        clients.filter(c => c.isArchived === showArchived).sort((a,b) => a.name.localeCompare(b.name)), 
+    [clients, showArchived]);
+
+    const getProjectsForClient = (clientId: string): Project[] => 
+        projects.filter(p => p.clientId === clientId && p.isArchived === showArchived).sort((a,b) => a.name.localeCompare(b.name));
 
     return (
         <div className="space-y-8">
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-center flex-wrap gap-4">
                 <h1 className="text-3xl font-bold text-text-primary">Clients & Projects</h1>
-                <button
-                    onClick={() => setIsClientModalOpen(true)}
-                    className="bg-primary text-white font-semibold px-4 py-2 rounded-lg hover:bg-primary-dark transition-colors"
-                >
-                    Add New Client
-                </button>
+                <div className="flex items-center gap-4">
+                    <ToggleSwitch checked={showArchived} onChange={setShowArchived} label={showArchived ? "Viewing Archived" : "Viewing Active"} />
+                    {!showArchived && (
+                        <button
+                            onClick={() => setIsClientModalOpen(true)}
+                            className="bg-primary text-white font-semibold px-4 py-2 rounded-lg hover:bg-primary-dark transition-colors"
+                        >
+                            Add New Client
+                        </button>
+                    )}
+                </div>
             </div>
 
-            {loading ? <p>Loading projects...</p> : projectsByClient.map(client => (
-                <Card key={client.id} title={client.name}>
-                    <div className="flex justify-between items-center -mt-2 mb-4">
-                        <span className="text-text-secondary text-sm">Active Projects</span>
-                         <button
-                            onClick={() => openNewProjectModal(client.id)}
-                            className="text-sm bg-primary/10 text-primary font-semibold px-3 py-1 rounded-md hover:bg-primary/20 transition-colors"
-                        >
-                            Add Project
-                        </button>
-                    </div>
-                    {client.projects.length > 0 ? (
-                        <ul className="space-y-2">
-                            {client.projects.map(project => (
-                                <li key={project.id} className="flex justify-between items-center p-2 rounded-md hover:bg-background">
-                                    <span>{project.name}</span>
-                                </li>
-                            ))}
-                        </ul>
-                    ) : (
-                        <p className="text-text-secondary itaic py-4 text-center">No active projects for this client yet.</p>
-                    )}
-                </Card>
-            ))}
+            {loading ? <p>Loading...</p> : clientsToDisplay.length > 0 ? clientsToDisplay.map(client => {
+                const clientProjects = getProjectsForClient(client.id);
+                return (
+                    <Card key={client.id} className="transition-all duration-300">
+                        <div className="flex justify-between items-start -mt-2">
+                             <h3 className="text-lg font-semibold text-text-primary mb-2">{client.name}</h3>
+                             <ActionMenu items={showArchived ? [
+                                 { label: 'Unarchive Client', onClick: () => updateClient(client.id, { isArchived: false }) },
+                                 { label: 'Delete Permanently', isDestructive: true, onClick: () => openConfirmModal({
+                                     title: 'Delete Client?',
+                                     message: `This will permanently delete "${client.name}" and all its associated projects and time entries. This action cannot be undone.`,
+                                     onConfirm: async () => deleteClient(client.id),
+                                     confirmText: 'Delete Client',
+                                     isDestructive: true,
+                                 })}
+                             ] : [
+                                 { label: 'Add Project', onClick: () => openNewProjectModal(client.id) },
+                                 { label: 'Archive Client', onClick: () => updateClient(client.id, { isArchived: true }) }
+                             ]}/>
+                        </div>
+
+                        {clientProjects.length > 0 ? (
+                            <ul className="space-y-2 mt-4 border-t border-border pt-4">
+                                {clientProjects.map(project => (
+                                    <li key={project.id} className="flex justify-between items-center p-2 rounded-md hover:bg-background group">
+                                        <span>{project.name}</span>
+                                        <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <ActionMenu items={showArchived ? [
+                                                { label: 'Unarchive Project', onClick: () => updateProject(project.id, { isArchived: false }) },
+                                                { label: 'Delete Permanently', isDestructive: true, onClick: () => openConfirmModal({
+                                                     title: 'Delete Project?',
+                                                     message: `This will permanently delete "${project.name}" and its time entries. This action cannot be undone.`,
+                                                     onConfirm: async () => deleteProject(project.id),
+                                                     confirmText: 'Delete Project',
+                                                     isDestructive: true,
+                                                })}
+                                            ] : [
+                                                { label: 'Archive Project', onClick: () => updateProject(project.id, { isArchived: true }) }
+                                            ]} />
+                                        </div>
+                                    </li>
+                                ))}
+                            </ul>
+                        ) : (
+                            <p className="text-text-secondary italic py-4 text-center">
+                                {showArchived ? 'No archived projects for this client.' : 'No active projects for this client yet.'}
+                            </p>
+                        )}
+                    </Card>
+                )
+            }) : (
+                 <p className="text-text-secondary text-center pt-16">{showArchived ? 'You have no archived clients.' : 'No active clients found. Add one to get started!'}</p>
+            )}
+
+            {/* Confirmation Modal */}
+            <Modal isOpen={isConfirmModalOpen} onClose={() => setIsConfirmModalOpen(false)} title={modalConfig.title}>
+                <p className="text-text-secondary mb-6">{modalConfig.message}</p>
+                <div className="flex justify-end space-x-2">
+                    <button onClick={() => setIsConfirmModalOpen(false)} className="px-4 py-2 rounded-lg border border-border hover:bg-background">Cancel</button>
+                    <button 
+                        onClick={() => { modalConfig.onConfirm(); setIsConfirmModalOpen(false); }}
+                        className={`px-4 py-2 rounded-lg text-white ${modalConfig.isDestructive ? 'bg-red-600 hover:bg-red-700' : 'bg-primary hover:bg-primary-dark'}`}
+                    >
+                        {modalConfig.confirmText}
+                    </button>
+                </div>
+            </Modal>
 
             {/* Add Client Modal */}
             <Modal isOpen={isClientModalOpen} onClose={() => setIsClientModalOpen(false)} title="Add New Client">

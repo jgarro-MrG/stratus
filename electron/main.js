@@ -43,7 +43,7 @@ const seedInitialData = () => {
         timeEntries: [
             { id: 't1', projectId: 'p1', description: 'Initial project setup and configuration.', startTime: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(), endTime: new Date(now.getTime() - 1 * 60 * 60 * 1000).toISOString() },
             { id: 't2', projectId: 'p2', description: 'Design mockups for the new homepage.', startTime: yesterday.toISOString(), endTime: new Date(yesterday.getTime() + 3 * 60 * 60 * 1000).toISOString() },
-            { id: 't3', projectId: 'p3', description: 'Researching AI models.', startTime: new Date(now.getTime() - 4 * 60 * 60 * 1000).toISOString(), endTime: null },
+            { id: 't3', projectId: 'p3', description: 'Researching AI models.', startTime: new Date(now.getTime() - 4 * 60 * 60 * 1000).toISOString(), endTime: new Date(now.getTime() - 3 * 60 * 60 * 1000).toISOString() },
         ]
     };
 };
@@ -74,6 +74,26 @@ const initializeStore = () => {
   }
 };
 
+const stopAllRunningTimersOnLaunch = () => {
+    const appData = store.get('appData');
+    if (appData && appData.timeEntries && Array.isArray(appData.timeEntries)) {
+        let wasModified = false;
+        const updatedEntries = appData.timeEntries.map(entry => {
+            if (entry.endTime === null) {
+                wasModified = true;
+                // Stop the timer by setting its end time to its start time.
+                // This prevents ghost time from accumulating if the app was closed improperly.
+                return { ...entry, endTime: entry.startTime };
+            }
+            return entry;
+        });
+
+        if (wasModified) {
+            store.set('appData.timeEntries', updatedEntries);
+            console.log('Cleaned up active timers from previous session.');
+        }
+    }
+};
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -102,6 +122,7 @@ async function main() {
     store = new Store({ schema });
 
     initializeStore();
+    stopAllRunningTimersOnLaunch();
     createWindow();
 
     app.on('activate', () => {

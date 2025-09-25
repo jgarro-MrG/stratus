@@ -12,7 +12,7 @@ interface AppDataContextType {
   loading: boolean;
   error: string | null;
   
-  refreshData: (includeArchived?: boolean) => Promise<void>;
+  refreshData: () => Promise<void>;
   
   addClient: (name: string) => Promise<Client | undefined>;
   updateClient: (id: string, updates: Partial<Pick<Client, 'name' | 'isArchived'>>) => Promise<void>;
@@ -39,14 +39,14 @@ export const AppDataProvider: React.FC<{ children: ReactNode }> = ({ children })
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  const refreshData = useCallback(async (includeArchived = false) => {
+  const refreshData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const [clientsData, projectsData, timeEntriesData, activeEntryData] = await Promise.all([
-        api.getClients(includeArchived),
-        api.getProjects(includeArchived),
-        api.getTimeEntries(includeArchived),
+        api.getClients(true),
+        api.getProjects(true),
+        api.getTimeEntries(true),
         api.getActiveTimeEntry()
       ]);
       setClients(clientsData);
