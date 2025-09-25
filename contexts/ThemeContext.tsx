@@ -6,12 +6,14 @@ interface ThemeContextType {
   theme: Theme;
   setTheme: (theme: Theme) => void;
   userSettings: UserSettings | null;
+  effectiveTheme: 'light' | 'dark';
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null);
+  const [effectiveTheme, setEffectiveTheme] = useState<'light' | 'dark'>('light');
   
   const theme = useMemo(() => userSettings?.preferences.theme || 'system', [userSettings]);
 
@@ -40,24 +42,38 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
   }, [userSettings]);
   
+  // This effect handles applying the theme class and favicon based on user settings
   useEffect(() => {
     if (!userSettings) return;
 
     const root = window.document.documentElement;
+    const favicon = window.document.getElementById('favicon') as HTMLLinkElement | null;
     const isDark =
       theme === 'dark' ||
       (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
 
     root.classList.toggle('dark', isDark);
+    setEffectiveTheme(isDark ? 'dark' : 'light');
+
+    if (favicon) {
+        favicon.href = isDark ? '/assets/logo-dark.svg' : '/assets/logo-light.svg';
+    }
   }, [theme, userSettings]);
   
-  // Listen for system theme changes
+  // This effect handles system theme changes when 'system' is selected
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const handleChange = () => {
+    const handleChange = (e: MediaQueryListEvent) => {
       if (theme === 'system') {
+        const isDark = e.matches;
         const root = window.document.documentElement;
-        root.classList.toggle('dark', mediaQuery.matches);
+        const favicon = window.document.getElementById('favicon') as HTMLLinkElement | null;
+        
+        root.classList.toggle('dark', isDark);
+        setEffectiveTheme(isDark ? 'dark' : 'light');
+        if (favicon) {
+            favicon.href = isDark ? '/assets/logo-dark.svg' : '/assets/logo-light.svg';
+        }
       }
     };
 
@@ -65,7 +81,7 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     return () => mediaQuery.removeEventListener('change', handleChange);
   }, [theme]);
 
-  const value = useMemo(() => ({ theme, setTheme: handleSetTheme, userSettings }), [theme, handleSetTheme, userSettings]);
+  const value = useMemo(() => ({ theme, setTheme: handleSetTheme, userSettings, effectiveTheme }), [theme, handleSetTheme, userSettings, effectiveTheme]);
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 };
