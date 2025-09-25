@@ -50,94 +50,101 @@
         animation: scaleUp 0.2s ease-out forwards;
       }
 
-      @media print {
-        /* Ensure light mode colors for printing */
-        .dark {
-          --color-primary: 59 130 246;
-          --color-background: 255 255 255;
-          --color-surface: 255 255 255;
-          --color-text-primary: 0 0 0;
-          --color-text-secondary: 71 85 105;
-          --color-border: 226 232 240;
+      @media screen {
+        .printable-only {
+          display: none;
         }
+      }
 
+      @media print {
         body {
           background-color: white !important;
           font-size: 10pt;
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
+          font-family: Georgia, serif; /* Document-style font */
         }
-        
-        .app-sidebar, .app-mobile-header, .print-hidden {
+
+        /* Hide screen-specific elements */
+        .app-sidebar, .app-mobile-header, .screen-only {
           display: none !important;
         }
 
+        /* Ensure the printable area takes up the full page */
         #root > .flex {
           display: block;
-          height: auto;
         }
-        
         .app-main-content {
           overflow: visible;
           height: auto;
-          flex: none;
           width: 100%;
-          padding: 1rem !important;
+          padding: 0 !important;
           margin: 0 !important;
           background-color: white !important;
         }
 
-        .printable-report-card {
-            border: none !important;
-            box-shadow: none !important;
-            padding: 0 !important;
-            margin-bottom: 0 !important;
-        }
-        .printable-report-card > div:first-child { display: none !important; }
-        .printable-report-card > div:last-child { padding: 0 !important; }
-
-        h1, h2, h3, h4, h5, h6 {
-            break-after: avoid;
-            color: black !important;
+        .printable-only {
+          display: block !important;
+          color: black !important;
         }
         
-        .printable-report-card h3 {
-            font-size: 1.5rem !important;
-            font-weight: 600;
-            margin-bottom: 1rem;
-            border-bottom: 2px solid #333;
-            padding-bottom: 0.5rem;
-            border-top: none !important;
-            padding-top: 0 !important;
-            margin-top: 2rem;
+        .printable-only .report-header h1 {
+          font-size: 24pt;
+          font-weight: bold;
+          text-align: center;
+          margin: 0;
+          color: black !important;
         }
-        .printable-report-card h3:first-of-type {
+        
+        .printable-only .report-header .report-date-range {
+          font-size: 14pt;
+          text-align: center;
+          margin-top: 0.25in;
+          margin-bottom: 0.75in;
+          color: #333 !important;
+        }
+
+        .printable-only h2 {
+          font-size: 16pt;
+          font-weight: bold;
+          margin-top: 0.5in;
+          margin-bottom: 0.25in;
+          border-bottom: 2px solid #000;
+          padding-bottom: 0.1in;
+          break-after: avoid;
+          color: black !important;
+        }
+        .printable-only h2:first-of-type {
             margin-top: 0;
         }
-        .printable-report-card h4 {
-            font-size: 1.2rem !important;
-            font-weight: 600;
-            margin-bottom: 0.75rem;
-            border-bottom: none !important;
+        
+        .printable-only h3 {
+          font-size: 12pt;
+          font-weight: bold;
+          margin-top: 0.3in;
+          margin-bottom: 0.15in;
+          break-after: avoid;
+          color: black !important;
         }
 
         table {
-            width: 100%;
-            border-collapse: collapse !important;
-            break-inside: avoid;
-            font-size: 10pt;
+          width: 100%;
+          border-collapse: collapse !important;
+          break-inside: avoid;
+          font-size: 10pt;
         }
         thead { display: table-header-group; }
+        tr { break-inside: avoid; }
         th, td {
-            border: 1px solid #ddd !important;
-            padding: 6px !important;
-            text-align: left !important;
-            color: black !important;
-            background-color: transparent !important;
+          border: 1px solid #ccc !important;
+          padding: 8px !important;
+          text-align: left !important;
+          color: black !important;
+          background-color: transparent !important;
         }
         th {
-            background-color: #f2f2f2 !important;
-            font-weight: 600 !important;
+          background-color: #eee !important;
+          font-weight: bold !important;
         }
       }
     </style>
