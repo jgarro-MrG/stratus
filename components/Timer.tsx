@@ -43,7 +43,8 @@ const Timer: React.FC = () => {
                 setDuration(Math.floor((now.getTime() - start.getTime()) / 1000));
             };
             updateDuration();
-            interval = setInterval(updateDuration, 1000);
+            // FIX: Explicitly use `window.setInterval` to avoid ambiguity with Node.js types and ensure the return type is `number`.
+            interval = window.setInterval(updateDuration, 1000);
         } else {
             setDuration(0);
             setDescription('');

@@ -44,18 +44,11 @@ interface BatchEntry {
 }
 
 const DashboardPage: React.FC = () => {
-    const { timeEntries, projects, clients, loading, addManualTimeEntry, addBatchManualTimeEntries } = useAppData();
+    const { timeEntries, projects, clients, loading, addBatchManualTimeEntries } = useAppData();
     const { addToast } = useToast();
     
-    // State for single manual entry
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [projectId, setProjectId] = useState('');
-    const [description, setDescription] = useState('');
-    const [startTime, setStartTime] = useState('');
-    const [endTime, setEndTime] = useState('');
-
-    // State for batch manual entry
-    const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
+    // State for manual entries modal (batch)
+    const [isManualEntriesModalOpen, setIsManualEntriesModalOpen] = useState(false);
     const [batchEntries, setBatchEntries] = useState<BatchEntry[]>([{ id: uuidv4(), projectId: '', description: '', startTime: '', endTime: '' }]);
 
     
@@ -73,47 +66,6 @@ const DashboardPage: React.FC = () => {
           clientName: clientMap.get(p.clientId) || 'Unknown Client'
         }));
     }, [projects, clients]);
-
-    const resetForm = () => {
-        setProjectId('');
-        setDescription('');
-        setStartTime('');
-        setEndTime('');
-    };
-
-    const handleSave = async () => {
-        if (!projectId || !description.trim() || !startTime || !endTime) {
-            addToast('Please fill all fields.', 'warning');
-            return;
-        }
-        const start = new Date(startTime);
-        const end = new Date(endTime);
-
-        if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-            addToast('Invalid date or time format.', 'error');
-            return;
-        }
-        
-        if (start >= end) {
-            addToast('End time must be after start time.', 'warning');
-            return;
-        }
-
-        try {
-            await addManualTimeEntry({
-                projectId,
-                description: description.trim(),
-                startTime: start,
-                endTime: end,
-            });
-            addToast('Manual entry added successfully.', 'success');
-            setIsModalOpen(false);
-            resetForm();
-        } catch (e) {
-            console.error(e);
-            addToast('Failed to add manual entry.', 'error');
-        }
-    };
 
     // Batch Entry Handlers
     const resetBatchForm = () => {
@@ -169,7 +121,7 @@ const DashboardPage: React.FC = () => {
         try {
             await addBatchManualTimeEntries(entriesToSave);
             addToast(`${entriesToSave.length} ${entriesToSave.length > 1 ? 'entries' : 'entry'} added successfully.`, 'success');
-            setIsBatchModalOpen(false);
+            setIsManualEntriesModalOpen(false);
             resetBatchForm();
         } catch (e) {
             console.error(e);
@@ -182,18 +134,12 @@ const DashboardPage: React.FC = () => {
         <div className="space-y-8">
             <div className="flex justify-between items-center">
                 <h1 className="text-3xl font-bold text-text-primary">Dashboard</h1>
-                <div className="flex items-center gap-2">
+                <div>
                     <button
-                        onClick={() => setIsModalOpen(true)}
+                        onClick={() => setIsManualEntriesModalOpen(true)}
                         className="bg-primary text-white font-semibold px-4 py-2 rounded-lg hover:bg-primary-dark transition-colors"
                     >
-                        Add Manual Entry
-                    </button>
-                    <button
-                        onClick={() => setIsBatchModalOpen(true)}
-                        className="bg-secondary text-white font-semibold px-4 py-2 rounded-lg hover:bg-emerald-600 transition-colors"
-                    >
-                        Add Batch Entries
+                        Add Manual Entries
                     </button>
                 </div>
             </div>
@@ -214,65 +160,8 @@ const DashboardPage: React.FC = () => {
                 )}
             </Card>
 
-            {/* Single Entry Modal */}
-            <Modal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); resetForm(); }} title="Add Manual Time Entry">
-                <div className="space-y-4">
-                    <div>
-                        <label htmlFor="project" className="block text-sm font-medium text-text-secondary">Project</label>
-                        <select
-                            id="project"
-                            value={projectId}
-                            onChange={(e) => setProjectId(e.target.value)}
-                            className="mt-1 w-full px-3 py-2 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
-                        >
-                            <option value="">Select a project</option>
-                            {projectOptions.map(p => (
-                            <option key={p.id} value={p.id}>{p.name} ({p.clientName})</option>
-                            ))}
-                        </select>
-                    </div>
-                    <div>
-                        <label htmlFor="description" className="block text-sm font-medium text-text-secondary">Description</label>
-                        <textarea
-                            id="description"
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                            rows={3}
-                            className="mt-1 w-full px-3 py-2 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
-                            placeholder="What did you work on?"
-                        />
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label htmlFor="startTime" className="block text-sm font-medium text-text-secondary">Start Time</label>
-                            <input
-                                type="datetime-local"
-                                id="startTime"
-                                value={startTime}
-                                onChange={(e) => setStartTime(e.target.value)}
-                                className="mt-1 w-full px-3 py-2 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
-                            />
-                        </div>
-                        <div>
-                            <label htmlFor="endTime" className="block text-sm font-medium text-text-secondary">End Time</label>
-                            <input
-                                type="datetime-local"
-                                id="endTime"
-                                value={endTime}
-                                onChange={(e) => setEndTime(e.target.value)}
-                                className="mt-1 w-full px-3 py-2 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
-                            />
-                        </div>
-                    </div>
-                    <div className="flex justify-end space-x-2 pt-4">
-                        <button onClick={() => { setIsModalOpen(false); resetForm(); }} className="px-4 py-2 rounded-lg border border-border hover:bg-background">Cancel</button>
-                        <button onClick={handleSave} className="px-4 py-2 rounded-lg bg-primary text-white hover:bg-primary-dark">Save Entry</button>
-                    </div>
-                </div>
-            </Modal>
-
-            {/* Batch Entry Modal */}
-            <Modal isOpen={isBatchModalOpen} onClose={() => { setIsBatchModalOpen(false); resetBatchForm(); }} title="Add Batch Time Entries" size="4xl">
+            {/* Manual Entries Modal (Batch) */}
+            <Modal isOpen={isManualEntriesModalOpen} onClose={() => { setIsManualEntriesModalOpen(false); resetBatchForm(); }} title="Add Manual Time Entries" size="4xl">
                 <div className="space-y-4">
                     <div className="max-h-[60vh] overflow-y-auto pr-2 -mr-2 space-y-3">
                         {batchEntries.map((entry, index) => (
@@ -335,7 +224,7 @@ const DashboardPage: React.FC = () => {
                     <button onClick={handleAddBatchRow} className="text-sm font-semibold text-primary hover:text-primary-dark">+ Add another entry</button>
 
                     <div className="flex justify-end space-x-2 pt-4 border-t border-border mt-4">
-                        <button onClick={() => { setIsBatchModalOpen(false); resetBatchForm(); }} className="px-4 py-2 rounded-lg border border-border hover:bg-background">Cancel</button>
+                        <button onClick={() => { setIsManualEntriesModalOpen(false); resetBatchForm(); }} className="px-4 py-2 rounded-lg border border-border hover:bg-background">Cancel</button>
                         <button onClick={handleSaveBatch} className="px-4 py-2 rounded-lg bg-primary text-white hover:bg-primary-dark">Save Entries</button>
                     </div>
                 </div>
