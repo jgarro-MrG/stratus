@@ -5,6 +5,7 @@ import Card from '../components/Card';
 import Modal from '../components/Modal';
 import { Client, Project } from '../types';
 import ActionMenu from '../components/ActionMenu';
+import EmptyState from '../components/EmptyState';
 
 const ToggleSwitch: React.FC<{ checked: boolean; onChange: (checked: boolean) => void; label: string }> = ({ checked, onChange, label }) => (
     <label htmlFor="toggle" className="flex items-center cursor-pointer">
@@ -106,24 +107,13 @@ const ProjectsPage: React.FC = () => {
     const getProjectsForClient = (clientId: string): Project[] => 
         projects.filter(p => p.clientId === clientId && !!p.isArchived === showArchived).sort((a,b) => a.name.localeCompare(b.name));
 
-    return (
-        <div className="space-y-8">
-            <div className="flex justify-between items-center flex-wrap gap-4">
-                <h1 className="text-3xl font-bold text-text-primary">Clients & Projects</h1>
-                <div className="flex items-center gap-4">
-                    <ToggleSwitch checked={showArchived} onChange={setShowArchived} label={showArchived ? "Viewing Archived" : "Viewing Active"} />
-                    {!showArchived && (
-                        <button
-                            onClick={() => setIsClientModalOpen(true)}
-                            className="bg-primary text-white font-semibold px-4 py-2 rounded-lg hover:bg-primary-dark transition-colors"
-                        >
-                            Add New Client
-                        </button>
-                    )}
-                </div>
-            </div>
+    const renderContent = () => {
+        if (loading) {
+            return <p>Loading...</p>;
+        }
 
-            {loading ? <p>Loading...</p> : clientsToDisplay.length > 0 ? clientsToDisplay.map(client => {
+        if (clientsToDisplay.length > 0) {
+            return clientsToDisplay.map(client => {
                 const clientProjects = getProjectsForClient(client.id);
                 const isEditingClient = editingItem?.type === 'client' && editingItem.id === client.id;
                 return (
@@ -211,9 +201,46 @@ const ProjectsPage: React.FC = () => {
                         )}
                     </Card>
                 )
-            }) : (
-                 <p className="text-text-secondary text-center pt-16">{showArchived ? 'You have no archived clients.' : 'No active clients found. Add one to get started!'}</p>
-            )}
+            });
+        }
+
+        return (
+            <EmptyState
+                title={showArchived ? "No Archived Clients" : "No Clients Found"}
+                message={showArchived ? "You don't have any archived clients." : "Get started by adding your first client. You can add projects to clients to organize your time entries."}
+            >
+                {!showArchived && (
+                    <button
+                        onClick={() => setIsClientModalOpen(true)}
+                        className="bg-primary text-white font-semibold px-6 py-3 rounded-lg hover:bg-primary-dark transition-colors text-base"
+                    >
+                        Add Your First Client
+                    </button>
+                )}
+            </EmptyState>
+        );
+    }
+
+    return (
+        <div className="space-y-8">
+            <div className="flex justify-between items-center flex-wrap gap-4">
+                <h1 className="text-3xl font-bold text-text-primary">Clients & Projects</h1>
+                <div className="flex items-center gap-4">
+                    <ToggleSwitch checked={showArchived} onChange={setShowArchived} label={showArchived ? "Viewing Archived" : "Viewing Active"} />
+                    {!showArchived && (
+                        <button
+                            onClick={() => setIsClientModalOpen(true)}
+                            className="bg-primary text-white font-semibold px-4 py-2 rounded-lg hover:bg-primary-dark transition-colors"
+                        >
+                            Add New Client
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            <div className="space-y-6">
+                {renderContent()}
+            </div>
 
             {/* Confirmation Modal */}
             <Modal isOpen={isConfirmModalOpen} onClose={() => setIsConfirmModalOpen(false)} title={modalConfig.title}>

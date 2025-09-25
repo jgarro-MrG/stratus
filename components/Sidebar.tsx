@@ -1,10 +1,9 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { useTheme } from '../contexts/ThemeContext';
 
 const Logo: React.FC = () => {
     const logoSrc = '/assets/logo.svg';
-    return <img src={logoSrc} alt="Stratus Time Tracker Logo" className="h-12 w-12" />;
+    return <img src={logoSrc} alt="Stratus Time Tracker Logo" className="h-14 w-auto" />;
 };
 
 const FolderIcon = () => (
@@ -36,9 +35,9 @@ const Sidebar: React.FC = () => {
 
     return (
         <div className="w-full h-full bg-surface border-r border-border flex flex-col p-4">
-            <div className="flex items-center space-x-2 px-4 mb-8">
+            <div className="flex items-center space-x-3 px-4 mb-8">
                 <Logo />
-                <h1 className="text-xl font-bold text-primary">Stratus Time Tracker</h1>
+                <h1 className="text-2xl font-bold text-primary">Stratus</h1>
             </div>
 
             <nav className="flex-1 space-y-2">

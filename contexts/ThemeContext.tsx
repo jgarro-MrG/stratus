@@ -42,22 +42,17 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
   }, [userSettings]);
   
-  // This effect handles applying the theme class and favicon based on user settings
+  // This effect handles applying the theme class based on user settings
   useEffect(() => {
     if (!userSettings) return;
 
     const root = window.document.documentElement;
-    const favicon = window.document.getElementById('favicon') as HTMLLinkElement | null;
     const isDark =
       theme === 'dark' ||
       (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
 
     root.classList.toggle('dark', isDark);
     setEffectiveTheme(isDark ? 'dark' : 'light');
-
-    if (favicon) {
-        favicon.href = isDark ? '/assets/logo-dark.svg' : '/assets/logo-light.svg';
-    }
   }, [theme, userSettings]);
   
   // This effect handles system theme changes when 'system' is selected
@@ -67,13 +62,9 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       if (theme === 'system') {
         const isDark = e.matches;
         const root = window.document.documentElement;
-        const favicon = window.document.getElementById('favicon') as HTMLLinkElement | null;
         
         root.classList.toggle('dark', isDark);
         setEffectiveTheme(isDark ? 'dark' : 'light');
-        if (favicon) {
-            favicon.href = isDark ? '/assets/logo-dark.svg' : '/assets/logo-light.svg';
-        }
       }
     };
 
