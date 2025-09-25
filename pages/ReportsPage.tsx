@@ -3,21 +3,20 @@ import { useAppData } from '../contexts/AppDataContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import Card from '../components/Card';
 import { TimeEntry } from '../types';
-// FIX: Consolidated date-fns imports to resolve module resolution issues.
-import { 
-    startOfWeek,
-    endOfWeek,
-    eachDayOfInterval,
-    isWithinInterval,
-    format,
-    subWeeks,
-    startOfMonth,
-    endOfMonth,
-    subMonths,
-    isSameDay,
-    startOfDay,
-    endOfDay 
-} from 'date-fns';
+import * as api from '../services/api';
+// FIX: Changed to individual default imports from date-fns submodules to resolve module resolution issues.
+import startOfWeek from 'date-fns/startOfWeek';
+import endOfWeek from 'date-fns/endOfWeek';
+import eachDayOfInterval from 'date-fns/eachDayOfInterval';
+import isWithinInterval from 'date-fns/isWithinInterval';
+import format from 'date-fns/format';
+import subWeeks from 'date-fns/subWeeks';
+import startOfMonth from 'date-fns/startOfMonth';
+import endOfMonth from 'date-fns/endOfMonth';
+import subMonths from 'date-fns/subMonths';
+import isSameDay from 'date-fns/isSameDay';
+import startOfDay from 'date-fns/startOfDay';
+import endOfDay from 'date-fns/endOfDay';
 
 
 type Period = 'thisWeek' | 'lastWeek' | 'thisMonth' | 'lastMonth' | 'custom';
@@ -151,7 +150,93 @@ const ReportsPage: React.FC = () => {
         };
     }, [filteredEntries, projectMap]);
 
-    const handlePrint = () => window.print();
+    const handlePrint = async () => {
+        // 1. Fetch all data, including archived, to build a complete report
+        const allClients = await api.getClients(true);
+        const allProjects = await api.getProjects(true);
+        const allTimeEntries = await api.getTimeEntries(true);
+    
+        // Create maps for easy lookup
+        const clientMap = new Map(allClients.map(c => [c.id, c.name]));
+        const projectMap = new Map(allProjects.map(p => [p.id, {
+            ...p,
+            clientName: clientMap.get(p.clientId) || 'Unknown Client'
+        }]));
+    
+        // 2. Filter entries by the selected date range
+        const printableEntries = allTimeEntries
+          .filter(entry => entry.endTime && isWithinInterval(entry.startTime, dateRange))
+          .sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+    
+        // 3. Generate the text report string
+        let reportText = '';
+    
+        // Header
+        reportText += '======================================\n';
+        reportText += '         STRATUS TIME REPORT\n';
+        reportText += '======================================\n\n';
+        reportText += `Date Range: ${format(dateRange.start, 'MMMM d, yyyy')} - ${format(dateRange.end, 'MMMM d, yyyy')}\n\n`;
+    
+        // Project Summary
+        const projectTotals = printableEntries.reduce((acc, entry) => {
+            const projectId = entry.projectId;
+            if (!entry.endTime) return acc;
+            const duration = entry.endTime.getTime() - entry.startTime.getTime();
+            acc[projectId] = (acc[projectId] || 0) + duration;
+            return acc;
+        }, {} as {[key: string]: number});
+    
+        reportText += '-------------------\n';
+        reportText += '  PROJECT SUMMARY\n';
+        reportText += '-------------------\n';
+        for (const projectId in projectTotals) {
+            const project = projectMap.get(projectId);
+            const totalMillis = projectTotals[projectId];
+            reportText += `${project?.name || 'Unknown Project'} (${project?.clientName || 'Unknown Client'}): ${formatMillisToHoursMinutes(totalMillis)}\n`;
+        }
+        reportText += '\n\n';
+    
+        // Detailed Log
+        const entriesByDay = printableEntries.reduce((acc, entry) => {
+            const dayKey = format(entry.startTime, 'yyyy-MM-dd');
+            if (!acc[dayKey]) acc[dayKey] = [];
+            acc[dayKey].push(entry);
+            return acc;
+        }, {} as {[key: string]: TimeEntry[]});
+    
+        reportText += '-------------------\n';
+        reportText += '    DETAILED LOG\n';
+        reportText += '-------------------\n';
+    
+        const sortedDays = Object.keys(entriesByDay).sort();
+    
+        for (const day of sortedDays) {
+            reportText += `\n--- ${format(new Date(day.replace(/-/g, '/')), 'EEEE, MMMM d, yyyy')} ---\n\n`;
+            const entries = entriesByDay[day];
+            for (const entry of entries) {
+                const project = projectMap.get(entry.projectId);
+                if (!entry.endTime) continue;
+                const duration = entry.endTime.getTime() - entry.startTime.getTime();
+                const timeRange = `${format(entry.startTime, 'p')} - ${format(entry.endTime, 'p')}`;
+                reportText += `  Project: ${project?.name} (${project?.clientName})\n`;
+                reportText += `  Task:    ${entry.description}\n`;
+                reportText += `  Time:    ${timeRange} (${formatMillisToHoursMinutes(duration)})\n`;
+                reportText += `  ------------------------------------\n`;
+            }
+        }
+    
+        // 4. Open a new window and print
+        const printWindow = window.open('', '_blank', 'height=600,width=800');
+        if (printWindow) {
+            printWindow.document.write(`<html><head><title>Print Report</title></head><body><pre style="font-family: 'Courier New', Courier, monospace; font-size: 12px;">${reportText}</pre></body></html>`);
+            printWindow.document.close();
+            printWindow.focus();
+            setTimeout(() => {
+                printWindow.print();
+                printWindow.close();
+            }, 250);
+        }
+    };
 
     const renderDetailedReport = () => (
         <>
@@ -294,13 +379,6 @@ const ReportsPage: React.FC = () => {
                 <Card title="Detailed Report">
                     {renderDetailedReport()}
                 </Card>
-            </div>
-            <div className="printable-only">
-                 <div className="report-header">
-                    <h1>Time Report</h1>
-                    <p className="report-date-range">{format(dateRange.start, 'MMMM d, yyyy')} - {format(dateRange.end, 'MMMM d, yyyy')}</p>
-                </div>
-                {renderDetailedReport()}
             </div>
         </div>
     );
