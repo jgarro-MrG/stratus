@@ -11,6 +11,7 @@ import LandingPage from './pages/LandingPage';
 import DashboardPage from './pages/DashboardPage';
 import ProjectsPage from './pages/ProjectsPage';
 import ReportsPage from './pages/ReportsPage';
+import Spinner from './components/Spinner';
 
 const AppLayout: React.FC = () => {
   const navigate = useNavigate();
@@ -41,8 +42,9 @@ const AppContent: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-background text-text-primary">
-        <p>Loading application...</p>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-background text-text-primary">
+        <Spinner className="h-12 w-12 text-primary" />
+        <p className="mt-4 text-lg text-text-secondary">Loading Application...</p>
       </div>
     );
   }
